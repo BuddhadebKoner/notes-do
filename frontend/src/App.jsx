@@ -8,6 +8,7 @@ import {
 } from '@clerk/clerk-react'
 import ClerkProviderWrapper from './context/ClerkProvider'
 import { ReactQueryProvider } from './lib/react-query'
+import ApiAuthProvider from './context/ApiAuthProvider'
 import HomePage from './_root/pages/HomePage'
 import ProfilePage from './_root/_profile/ProfilePage'
 
@@ -59,17 +60,19 @@ function App() {
   return (
     <ClerkProviderWrapper>
       <ReactQueryProvider>
-        <Router>
-          <div className='min-h-screen bg-gray-50'>
-            <Navigation />
-            <main>
-              <Routes>
-                <Route path='/' element={<HomePage />} />
-                <Route path='/profile' element={<ProfilePage />} />
-              </Routes>
-            </main>
-          </div>
-        </Router>
+        <ApiAuthProvider>
+          <Router>
+            <div className='min-h-screen bg-gray-50'>
+              <Navigation />
+              <main>
+                <Routes>
+                  <Route path='/' element={<HomePage />} />
+                  <Route path='/profile' element={<ProfilePage />} />
+                </Routes>
+              </main>
+            </div>
+          </Router>
+        </ApiAuthProvider>
       </ReactQueryProvider>
     </ClerkProviderWrapper>
   )
