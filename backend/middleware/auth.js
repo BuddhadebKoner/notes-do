@@ -1,134 +1,159 @@
-import { createClerkClient } from '@clerk/clerk-sdk-node';
-import dotenv from 'dotenv';
+import { clerkClient } from '@clerk/clerk-sdk-node';
+import { User } from '../models/index.js';
 
-dotenv.config();
+// Environment variables validation
+const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
 
-// Initialize Clerk
-const clerk = createClerkClient({
-   secretKey: process.env.CLERK_SECRET_KEY,
-});
+if (!CLERK_SECRET_KEY) {
+   throw new Error('CLERK_SECRET_KEY environment variable is required');
+}
 
-// Middleware to verify Clerk token
-export const verifyClerkToken = async (req, res, next) => {
+// Middleware to verify Clerk authentication and get user data
+export const requireAuth = async (req, res, next) => {
    try {
-      // Get token from Authorization header
       const authHeader = req.headers.authorization;
-      const clerkToken = req.headers['x-clerk-auth-token'];
+      console.log('UserAuth middleware - Authorization header:', authHeader);
 
-      let token = null;
-
-      // Check Authorization header first (Bearer token)
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-         token = authHeader.substring(7); // Remove 'Bearer ' prefix
-      }
-      // Check custom clerk header
-      else if (clerkToken) {
-         token = clerkToken;
-      }
-
-      if (!token) {
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
          return res.status(401).json({
             success: false,
-            message: 'Access denied. No token provided.',
+            message: 'Authentication required. Please provide a valid token.'
          });
       }
 
-      // Verify the token with Clerk
-      const session = await clerk.verifyToken(token, {
-         secretKey: process.env.CLERK_SECRET_KEY,
-      });
+      const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-      if (!session) {
-         return res.status(401).json({
-            success: false,
-            message: 'Invalid token.',
-         });
-      }
+      // Verify token with Clerk
+      const session = await clerkClient.verifyToken(token);
+      const userId = session.sub;
 
-      // Get user information from Clerk
-      const user = await clerk.users.getUser(session.sub);
+      console.log('UserAuth middleware - Token verified, userId:', userId);
 
-      // Add user and session info to request object
-      req.user = {
-         id: user.id,
-         email: user.emailAddresses[0]?.emailAddress,
-         firstName: user.firstName,
-         lastName: user.lastName,
-         username: user.username,
-         imageUrl: user.imageUrl,
-      };
-      req.session = session;
+      // Get user details from Clerk
+      const clerkUser = await clerkClient.users.getUser(userId);
+
+      // Try to find user in our database
+      const user = await User.findOne({ clerkId: userId }).populate('activity.notesUploaded', 'title createdAt');
+
+      // Attach user info to request
+      req.user = user;
+      req.clerkId = userId;
+      req.clerkUser = clerkUser; // Full Clerk user data
 
       next();
    } catch (error) {
-      console.error('Clerk token verification error:', error);
+      console.error('Authentication middleware error:', error);
 
-      // Handle different types of Clerk errors
-      if (error.message.includes('Invalid token')) {
+      // Handle specific Clerk errors
+      if (error.code === 'session_token_invalid' || error.code === 'session_token_expired') {
          return res.status(401).json({
             success: false,
-            message: 'Invalid or expired token.',
-         });
-      }
-
-      if (error.message.includes('Token expired')) {
-         return res.status(401).json({
-            success: false,
-            message: 'Token has expired. Please log in again.',
+            message: 'Invalid or expired token. Please log in again.'
          });
       }
 
       return res.status(500).json({
          success: false,
-         message: 'Token verification failed.',
-         error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+         message: 'Authentication verification failed',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
    }
 };
 
-// Optional middleware to check if user exists (for protected routes that don't require auth)
+// Optional middleware - doesn't require authentication but populates user if available
 export const optionalAuth = async (req, res, next) => {
    try {
       const authHeader = req.headers.authorization;
-      const clerkToken = req.headers['x-clerk-auth-token'];
-
-      let token = null;
 
       if (authHeader && authHeader.startsWith('Bearer ')) {
-         token = authHeader.substring(7);
-      } else if (clerkToken) {
-         token = clerkToken;
-      }
+         const token = authHeader.substring(7);
 
-      if (token) {
          try {
-            const session = await clerk.verifyToken(token, {
-               secretKey: process.env.CLERK_SECRET_KEY,
-            });
+            const session = await clerkClient.verifyToken(token);
+            const userId = session.sub;
 
-            if (session) {
-               const user = await clerk.users.getUser(session.sub);
-               req.user = {
-                  id: user.id,
-                  email: user.emailAddresses[0]?.emailAddress,
-                  firstName: user.firstName,
-                  lastName: user.lastName,
-                  username: user.username,
-                  imageUrl: user.imageUrl,
-               };
-               req.session = session;
-            }
+            const clerkUser = await clerkClient.users.getUser(userId);
+            const user = await User.findOne({ clerkId: userId });
+
+            req.user = user;
+            req.clerkId = userId;
+            req.clerkUser = clerkUser;
          } catch (error) {
-            // Token is invalid, but we continue without setting user
-            console.log('Optional auth failed:', error.message);
+            // Token invalid or expired, but don't block the request
+            console.log('Optional auth - Invalid token, continuing without auth');
          }
       }
 
       next();
    } catch (error) {
-      console.error('Optional auth error:', error);
-      next(); // Continue without authentication
+      console.error('Optional auth middleware error:', error);
+      // Don't block the request, just continue without user data
+      next();
    }
 };
 
-export { clerk };
+// Middleware to check if user exists in our database
+export const requireUserInDB = async (req, res, next) => {
+   try {
+      if (!req.user) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found in database. Please create your profile first.',
+            needsProfileCreation: true
+         });
+      }
+
+      // Check if user account is active
+      if (!req.user.account.isActive) {
+         return res.status(403).json({
+            success: false,
+            message: 'Your account has been deactivated. Please contact support.'
+         });
+      }
+
+      next();
+   } catch (error) {
+      console.error('User database check error:', error);
+      return res.status(500).json({
+         success: false,
+         message: 'User verification failed',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Middleware to check user role
+export const requireRole = (roles) => {
+   return (req, res, next) => {
+      try {
+         if (!req.user) {
+            return res.status(401).json({
+               success: false,
+               message: 'Authentication required'
+            });
+         }
+
+         if (!roles.includes(req.user.account.role)) {
+            return res.status(403).json({
+               success: false,
+               message: `Access denied. Required role: ${roles.join(' or ')}`
+            });
+         }
+
+         next();
+      } catch (error) {
+         console.error('Role check error:', error);
+         return res.status(500).json({
+            success: false,
+            message: 'Role verification failed'
+         });
+      }
+   };
+};
+
+export default {
+   requireAuth,
+   optionalAuth,
+   requireUserInDB,
+   requireRole
+};

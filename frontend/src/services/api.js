@@ -8,47 +8,171 @@ const getAuthConfig = async () => {
 
 // Auth API services
 export const authAPI = {
-   // Check authentication status
-   checkStatus: async () => {
+   // Check if user is logged in
+   checkLogin: async () => {
       try {
          const config = await getAuthConfig()
-         const response = await api.get(API_ENDPOINTS.AUTH.STATUS, config)
+         const response = await api.get(API_ENDPOINTS.AUTH.CHECK_LOGIN, config)
          return response.data
       } catch (error) {
          throw error.response?.data || error.message
       }
    },
 
-   // Get current user info
-   getCurrentUser: async () => {
+   // Create user profile
+   createUser: async (userData) => {
       try {
          const config = await getAuthConfig()
-         const response = await api.get(API_ENDPOINTS.AUTH.ME, config)
+         const response = await api.post(API_ENDPOINTS.AUTH.CREATE_USER, userData, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+}
+
+// Profile API services
+export const profileAPI = {
+   // Get complete user profile
+   getProfile: async () => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.GET_PROFILE, config)
          return response.data
       } catch (error) {
          throw error.response?.data || error.message
       }
    },
 
-   // Verify token
-   verifyToken: async () => {
+   // Get user's uploaded notes
+   getUploadedNotes: async (page = 1, limit = 10, sortBy = 'uploadDate', sortOrder = 'desc') => {
       try {
-         const response = await api.post(API_ENDPOINTS.AUTH.VERIFY)
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.UPLOADED_NOTES, {
+            params: { page, limit, sortBy, sortOrder },
+            ...config
+         })
          return response.data
       } catch (error) {
          throw error.response?.data || error.message
       }
    },
 
-   // Logout
-   logout: async () => {
+   // Get user's wishlist
+   getWishlist: async (page = 1, limit = 10) => {
       try {
-         const response = await api.post(API_ENDPOINTS.AUTH.LOGOUT)
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.WISHLIST, {
+            params: { page, limit },
+            ...config
+         })
          return response.data
       } catch (error) {
          throw error.response?.data || error.message
       }
    },
+
+   // Get user's favorites
+   getFavorites: async (page = 1, limit = 10) => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.FAVORITES, {
+            params: { page, limit },
+            ...config
+         })
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Get user's followers
+   getFollowers: async () => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWERS, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Get user's following
+   getFollowing: async () => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWING, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Get user activity statistics
+   getActivityStats: async () => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.PROFILE.STATS, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Update user profile
+   updateProfile: async (profileData) => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.put(API_ENDPOINTS.PROFILE.UPDATE_PROFILE, profileData, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   }
+}
+
+// Notes API services
+export const notesAPI = {
+   // Upload a note
+   uploadNote: async (formData) => {
+      try {
+         const config = {
+            headers: {
+               'Content-Type': 'multipart/form-data',
+            },
+            ...await getAuthConfig()
+         }
+         const response = await api.post(API_ENDPOINTS.NOTES.UPLOAD, formData, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Get notes with filters
+   getNotes: async (filters = {}) => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(API_ENDPOINTS.NOTES.GET_NOTES, {
+            params: filters,
+            ...config
+         })
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Get single note by ID
+   getNoteById: async (noteId) => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(`${API_ENDPOINTS.NOTES.GET_NOTE}/${noteId}`, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
+   }
 }
 
 // Generic API helper functions
@@ -97,5 +221,7 @@ export const apiHelpers = {
 
 export default {
    auth: authAPI,
+   profile: profileAPI,
+   notes: notesAPI,
    helpers: apiHelpers,
 }

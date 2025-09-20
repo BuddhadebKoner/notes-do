@@ -6,11 +6,11 @@ import {
   UserButton,
   SignInButton,
 } from '@clerk/clerk-react'
-import ClerkProviderWrapper from './context/ClerkProvider'
-import { ReactQueryProvider } from './lib/react-query'
 import ApiAuthProvider from './context/ApiAuthProvider'
 import HomePage from './_root/pages/HomePage'
 import ProfilePage from './_root/_profile/ProfilePage'
+import UploadNote from './components/upload/UploadNote'
+import GoogleCallback from './components/google/GoogleCallback'
 
 // Navigation Component
 const Navigation = () => {
@@ -38,8 +38,15 @@ const Navigation = () => {
             </div>
           </div>
 
-          <div className='flex items-center'>
+          <div className='flex items-center space-x-4'>
             <SignedIn>
+              <Link
+                to='/upload'
+                className='bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2'
+              >
+                <span>📄</span>
+                <span>Upload Note</span>
+              </Link>
               <UserButton />
             </SignedIn>
             <SignedOut>
@@ -58,23 +65,21 @@ const Navigation = () => {
 
 function App() {
   return (
-    <ClerkProviderWrapper>
-      <ReactQueryProvider>
-        <ApiAuthProvider>
-          <Router>
-            <div className='min-h-screen bg-gray-50'>
-              <Navigation />
-              <main>
-                <Routes>
-                  <Route path='/' element={<HomePage />} />
-                  <Route path='/profile' element={<ProfilePage />} />
-                </Routes>
-              </main>
-            </div>
-          </Router>
-        </ApiAuthProvider>
-      </ReactQueryProvider>
-    </ClerkProviderWrapper>
+    <ApiAuthProvider>
+      <Router>
+        <div className='min-h-screen bg-gray-50'>
+          <Navigation />
+          <main>
+            <Routes>
+              <Route path='/' element={<HomePage />} />
+              <Route path='/profile/*' element={<ProfilePage />} />
+              <Route path='/upload' element={<UploadNote />} />
+              <Route path='/auth/google/callback' element={<GoogleCallback />} />
+            </Routes>
+          </main>
+        </div>
+      </Router>
+    </ApiAuthProvider>
   )
 }
 

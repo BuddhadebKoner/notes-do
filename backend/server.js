@@ -11,6 +11,12 @@ import dotenv from 'dotenv';
 // Import database connection
 import connectDB from './config/database.js';
 
+// Import routes
+import authRoutes from './routes/auth.js';
+import noteRoutes from './routes/notes.js';
+import googleRoutes from './routes/google.js';
+import profileRoutes from './routes/profile.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -106,9 +112,6 @@ app.get('/health', (req, res) => {
    });
 });
 
-// Import routes
-import authRoutes from './routes/auth.js';
-
 // API Routes
 app.get('/api', (req, res) => {
    res.status(200).json({
@@ -118,12 +121,21 @@ app.get('/api', (req, res) => {
       endpoints: {
          health: '/health',
          auth: '/api/auth',
+         notes: '/api/notes',
+         profile: '/api/profile',
+         google: '/api/google'
       },
    });
 });
 
 // Mount routes
 app.use('/api/auth', authRoutes);
+app.use('/api/notes', noteRoutes);
+app.use('/api/google', googleRoutes);
+app.use('/api/profile', profileRoutes);
+
+// Serve uploaded files (for development fallback)
+app.use('/uploads', express.static('uploads'));
 
 // Global error handler
 app.use((err, req, res, next) => {

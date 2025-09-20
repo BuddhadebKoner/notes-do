@@ -4,10 +4,24 @@ import axios from 'axios'
 export const API_ENDPOINTS = {
   BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
   AUTH: {
-    STATUS: '/auth/status',
-    ME: '/auth/me',
-    VERIFY: '/auth/verify',
-    LOGOUT: '/auth/logout',
+    CHECK_LOGIN: '/auth/check-login',
+    CREATE_USER: '/auth/create-user',
+  },
+  NOTES: {
+    UPLOAD: '/notes/upload',
+    GET_NOTES: '/notes',
+    GET_NOTE: '/notes',
+    DOWNLOAD: '/notes'
+  },
+  PROFILE: {
+    GET_PROFILE: '/profile',
+    UPDATE_PROFILE: '/profile',
+    UPLOADED_NOTES: '/profile/uploaded-notes',
+    WISHLIST: '/profile/wishlist',
+    FAVORITES: '/profile/favorites',
+    FOLLOWERS: '/profile/followers',
+    FOLLOWING: '/profile/following',
+    STATS: '/profile/stats'
   },
 }
 
