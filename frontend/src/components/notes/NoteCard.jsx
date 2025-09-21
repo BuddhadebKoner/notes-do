@@ -68,7 +68,7 @@ const NoteCard = ({ note, onView, onDownload }) => {
             {getPreviewUrl() ? (
                <>
                   <img
-                     src={getPreviewUrl()}
+                     src={'https://lh3.googleusercontent.com/d/13Zqtzi0XDYCG8OOCffLsBHZ6ccOzEEFM=w300-h400'}
                      alt={title}
                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                      onError={(e) => {

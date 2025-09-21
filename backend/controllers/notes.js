@@ -2,7 +2,6 @@ import { google } from 'googleapis';
 import multer from 'multer';
 import { Readable } from 'stream';
 import { Note } from '../models/index.js';
-import { generatePDFThumbnail, generateDriveThumbnailUrl } from '../utils/thumbnailGenerator.js';
 
 // Create Google Drive service for user's personal Drive
 const getUserDriveService = (tokenData) => {
@@ -67,7 +66,7 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
       let thumbnailUrl = response.data.thumbnailLink;
       if (!thumbnailUrl && response.data.id) {
          // Alternative method: Use Google Drive's thumbnail API
-         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;
+         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;  
       }
 
       return {
@@ -316,29 +315,6 @@ export const uploadNote = async (req, res) => {
 
       if (!driveResult.success) {
          throw new Error(driveResult.error || 'File upload failed');
-      }
-
-      // Generate thumbnail from PDF first page
-      console.log('Generating thumbnail from PDF...');
-      let thumbnailResult = await generatePDFThumbnail(req.file.buffer, fileName);
-
-      // If local thumbnail generation fails, use Google Drive thumbnail as fallback
-      if (!thumbnailResult.success && driveResult.file.id && !driveResult.file.id.startsWith('local_')) {
-         console.log('Local thumbnail generation failed, using Google Drive thumbnail as fallback');
-         const driveThumbnailUrl = generateDriveThumbnailUrl(driveResult.file.id);
-         thumbnailResult = {
-            success: true,
-            thumbnailUrl: driveThumbnailUrl || driveResult.file.thumbnailLink,
-            fallback: true
-         };
-      }
-
-      // Update the drive result with the generated thumbnail
-      if (thumbnailResult.success && thumbnailResult.thumbnailUrl) {
-         driveResult.file.thumbnailLink = thumbnailResult.thumbnailUrl;
-         console.log('Thumbnail generated successfully:', thumbnailResult.thumbnailUrl);
-      } else {
-         console.warn('Thumbnail generation failed:', thumbnailResult.error || 'Unknown error');
       }
 
       // Parse tags if it's a string
@@ -856,30 +832,6 @@ export const cleanupLocalFiles = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to cleanup files',
-         error: error.message
-      });
-   }
-};
-
-// Cleanup old thumbnail files (utility function)
-export const cleanupThumbnails = async (req, res) => {
-   try {
-      const { cleanupOldThumbnails } = await import('../utils/thumbnailGenerator.js');
-      const maxAgeHours = req.query.maxAge ? parseInt(req.query.maxAge) : 24;
-
-      const cleanedCount = await cleanupOldThumbnails(maxAgeHours);
-
-      res.json({
-         success: true,
-         message: `Cleaned up ${cleanedCount} old thumbnail files`,
-         filesRemoved: cleanedCount
-      });
-
-   } catch (error) {
-      console.error('Thumbnail cleanup error:', error);
-      res.status(500).json({
-         success: false,
-         message: 'Failed to cleanup thumbnails',
          error: error.message
       });
    }

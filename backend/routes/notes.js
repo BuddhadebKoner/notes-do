@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { requireAuth, requireUserInDB, optionalAuth } from '../middleware/auth.js';
-import { uploadNote, getNotesFeed, getNoteById, downloadNote, cleanupThumbnails } from '../controllers/notes.js';
+import { uploadNote, getNotesFeed, getNoteById, downloadNote } from '../controllers/notes.js';
 
 const router = express.Router();
 
@@ -40,9 +40,6 @@ router.get('/:id', optionalAuth, getNoteById);
 
 // Download note file (optional authentication for download tracking)
 router.get('/:id/download', optionalAuth, downloadNote);
-
-// Cleanup old thumbnails (admin utility)
-router.post('/cleanup-thumbnails', requireAuth, cleanupThumbnails);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
