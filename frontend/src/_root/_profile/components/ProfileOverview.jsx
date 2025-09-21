@@ -200,35 +200,6 @@ const ProfileOverview = () => {
                )}
             </div>
          </div>
-
-         {/* Google Drive Integration */}
-         {user.driveIntegration && (
-            <div className='bg-white p-6 rounded-lg shadow-lg'>
-               <h3 className='text-lg font-semibold text-gray-900 mb-4'>Google Drive Integration</h3>
-               <div className='flex items-center justify-between'>
-                  <div className='flex items-center space-x-3'>
-                     <span className={`w-3 h-3 rounded-full ${user.driveIntegration.isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                     <span className='font-medium'>
-                        {user.driveIntegration.isConnected ? 'Connected' : 'Not Connected'}
-                     </span>
-                     {user.driveIntegration.driveEmail && (
-                        <span className='text-sm text-gray-600'>({user.driveIntegration.driveEmail})</span>
-                     )}
-                  </div>
-                  {user.driveIntegration.storageQuota && (
-                     <div className='text-sm text-gray-600'>
-                        Storage: {(user.driveIntegration.storageQuota.used / 1024 / 1024 / 1024).toFixed(2)} GB /
-                        {(user.driveIntegration.storageQuota.limit / 1024 / 1024 / 1024).toFixed(0)} GB
-                     </div>
-                  )}
-               </div>
-               {user.driveIntegration.lastSync && (
-                  <p className='text-sm text-gray-600 mt-2'>
-                     Last sync: {new Date(user.driveIntegration.lastSync).toLocaleString()}
-                  </p>
-               )}
-            </div>
-         )}
       </div>
    )
 }

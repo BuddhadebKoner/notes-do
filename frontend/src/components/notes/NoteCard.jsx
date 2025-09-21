@@ -64,11 +64,11 @@ const NoteCard = ({ note, onView, onDownload }) => {
    return (
       <Card className="group h-full flex flex-col hover:shadow-lg transition-all duration-300 bg-white">
          {/* PDF Preview */}
-         <div className="relative aspect-[3/4] bg-gray-50 rounded-t-lg overflow-hidden cursor-pointer" onClick={handleView}>
+         <div className="relative aspect-[4/3] bg-gray-50 rounded-t-lg overflow-hidden cursor-pointer" onClick={handleView}>
             {getPreviewUrl() ? (
                <>
                   <img
-                     src={'https://lh3.googleusercontent.com/d/13Zqtzi0XDYCG8OOCffLsBHZ6ccOzEEFM=w300-h400'}
+                     src={getPreviewUrl()}
                      alt={title}
                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                      onError={(e) => {
@@ -92,17 +92,6 @@ const NoteCard = ({ note, onView, onDownload }) => {
                   </div>
                </div>
             )}
-
-            {/* Like button overlay */}
-            <button
-               onClick={handleLike}
-               className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-sm transition-all ${isLiked
-                  ? 'bg-red-500 text-white'
-                  : 'bg-white/80 text-gray-600 hover:bg-white hover:text-red-500'
-                  }`}
-            >
-               <Heart className="w-4 h-4" fill={isLiked ? 'currentColor' : 'none'} />
-            </button>
          </div>
 
          {/* Content */}
