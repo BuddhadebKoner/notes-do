@@ -80,7 +80,7 @@ const UploadedNotes = () => {
             </span>
             <div className='space-x-2'>
                <a
-                  href={note.file?.downloadUrl}
+                  href={note.file?.viewUrl}
                   target='_blank'
                   rel='noopener noreferrer'
                   className='px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors'

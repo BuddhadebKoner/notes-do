@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 export const getUserProfile = async (req, res) => {
    try {
       // Find user by clerkId and populate relevant data
+      console.log('Fetching profile for clerkId:', req.clerkId);
       const user = await User.findOne({ clerkId: req.clerkId })
          .populate({
             path: 'activity.notesUploaded',

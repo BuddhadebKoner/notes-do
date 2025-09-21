@@ -9,8 +9,8 @@ import {
 import ApiAuthProvider from './context/ApiAuthProvider'
 import HomePage from './_root/pages/HomePage'
 import ProfilePage from './_root/_profile/ProfilePage'
-import UploadNote from './components/upload/UploadNote'
 import GoogleCallback from './components/google/GoogleCallback'
+import UploadNote from './_root/_profile/components/UploadNote'
 
 // Navigation Component
 const Navigation = () => {

@@ -9,8 +9,13 @@ import {
    updateUserProfile,
    getUserActivityStats
 } from '../controllers/profile.js';
+import { requireAuth, requireUserInDB } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(requireAuth);
+router.use(requireUserInDB);
 
 // Get complete user profile information
 router.get('/', getUserProfile);

@@ -2,7 +2,8 @@ import api, { API_ENDPOINTS } from '../config/api.js'
 
 // Helper function to create authenticated request config
 const getAuthConfig = async () => {
-   // Token is managed via setAuthToken in api.js
+   // Token is now managed automatically by the request interceptor
+   // No need to manually set headers here
    return {}
 }
 

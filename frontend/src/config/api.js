@@ -25,15 +25,23 @@ export const API_ENDPOINTS = {
   },
 }
 
+// Global token refresh function reference
+let getTokenFunction = null
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_ENDPOINTS.BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // Increased timeout to 30 seconds
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 })
+
+// Function to set the token refresh function
+export const setTokenRefreshFunction = (getToken) => {
+  getTokenFunction = getToken
+}
 
 // Function to set auth token (will be called from components)
 export const setAuthToken = (token) => {
@@ -46,10 +54,21 @@ export const setAuthToken = (token) => {
   }
 }
 
-// Request interceptor
+// Request interceptor - Get fresh token before each request
 api.interceptors.request.use(
-  (config) => {
-    // Token is now set via setAuthToken function
+  async (config) => {
+    // Get fresh token before each request to avoid expiry issues
+    if (getTokenFunction) {
+      try {
+        const freshToken = await getTokenFunction()
+        if (freshToken) {
+          config.headers['Authorization'] = `Bearer ${freshToken}`
+          config.headers['x-clerk-auth-token'] = freshToken
+        }
+      } catch (error) {
+        console.error('Error getting fresh token:', error)
+      }
+    }
     return config
   },
   (error) => {
@@ -60,11 +79,30 @@ api.interceptors.request.use(
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      console.log('Unauthorized access - redirecting to login')
-      // You might want to redirect to login or refresh token here
+  async (error) => {
+    const originalRequest = error.config
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      // Try to get a fresh token and retry the request
+      if (getTokenFunction) {
+        try {
+          console.log('Token expired, attempting to refresh...')
+          const freshToken = await getTokenFunction()
+          if (freshToken) {
+            originalRequest.headers['Authorization'] = `Bearer ${freshToken}`
+            originalRequest.headers['x-clerk-auth-token'] = freshToken
+            return api(originalRequest)
+          }
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError)
+        }
+      }
+
+      // If refresh fails, redirect to login
+      console.log('Authentication failed - user needs to login again')
+      // You might want to trigger a logout or redirect here
     }
 
     return Promise.reject(error)
