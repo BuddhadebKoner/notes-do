@@ -74,7 +74,7 @@ export const uploadNoteFormSchema = z.object({
 
 // Default values for the form
 export const defaultUploadValues = {
-   noteFile: undefined,
+   noteFile: undefined, // Use undefined for file inputs to keep them uncontrolled
    title: '',
    description: '',
    subject: '',

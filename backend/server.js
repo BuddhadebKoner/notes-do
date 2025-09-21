@@ -16,6 +16,7 @@ import authRoutes from './routes/auth.js';
 import noteRoutes from './routes/notes.js';
 import googleRoutes from './routes/google.js';
 import profileRoutes from './routes/profile.js';
+import thumbnailRoutes from './routes/thumbnails.js';
 
 // Load environment variables
 dotenv.config();
@@ -133,6 +134,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/google', googleRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/thumbnails', thumbnailRoutes);
 
 // Serve uploaded files (for development fallback)
 app.use('/uploads', express.static('uploads'));

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { QUERY_KEYS } from './QueryKeys.js'
 import { authAPI, notesAPI } from '../../services/api.js'
 import { profileAPI } from '../../services/api.js'
@@ -67,8 +68,8 @@ export const useUploadNote = () => {
       mutationFn: notesAPI.uploadNote,
       onSuccess: (data) => {
          if (data.success) {
-            // Invalidate and refetch notes list
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GET_NOTES })
+            // Invalidate and refetch notes feed
+            queryClient.invalidateQueries({ queryKey: ['notes', 'feed'] })
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GET_PROFILE })
 
             console.log('Note uploaded successfully:', data.message)
@@ -82,13 +83,58 @@ export const useUploadNote = () => {
 
 // ========== PROFILE QUERIES ==========
 
-// Query to get complete user profile
+// Query to get complete user profile with auto user creation
 export const useGetProfile = () => {
+   const queryClient = useQueryClient()
+
    return useQuery({
       queryKey: QUERY_KEYS.GET_PROFILE,
-      queryFn: profileAPI.getProfile,
+      queryFn: async () => {
+         try {
+            // First try to get the profile
+            return await profileAPI.getProfile()
+         } catch (error) {
+            // Check if error is "User not found in database"
+            if (error.message?.includes('User not found in database') ||
+               error.message?.includes('Please create your profile first') ||
+               error.status === 404) {
+
+               console.log('User not found in database, creating user profile...')
+
+               try {
+                  // Create user profile automatically
+                  const createUserResult = await authAPI.createUser({})
+
+                  if (createUserResult.success) {
+                     console.log('User profile created successfully, fetching profile...')
+                     // After successful creation, fetch the profile again
+                     return await profileAPI.getProfile()
+                  } else {
+                     throw new Error(createUserResult.message || 'Failed to create user profile')
+                  }
+               } catch (createError) {
+                  console.error('Failed to auto-create user:', createError)
+                  throw createError
+               }
+            }
+
+            // Re-throw the error if it's not a "user not found" error
+            throw error
+         }
+      },
       staleTime: 5 * 60 * 1000, // 5 minutes
       cacheTime: 10 * 60 * 1000, // 10 minutes
+      retry: (failureCount, error) => {
+         // Don't retry if it's an auth error or user creation error
+         if (error.message?.includes('authentication') ||
+            error.message?.includes('create user') ||
+            error.status === 401 ||
+            error.status === 403) {
+            return false
+         }
+         // Retry up to 2 times for other errors
+         return failureCount < 2
+      }
    })
 }
 
@@ -146,6 +192,104 @@ export const useGetActivityStats = () => {
       queryKey: QUERY_KEYS.GET_ACTIVITY_STATS,
       queryFn: profileAPI.getActivityStats,
       staleTime: 5 * 60 * 1000, // 5 minutes
+   })
+}
+
+// ========== NOTES QUERIES ==========
+
+// Query to get notes feed for cards display
+export const useGetNotesFeed = (page = 1, limit = 12, filters = {}) => {
+   // Create a stable filter string for proper memoization
+   const filterString = useMemo(() => {
+      const cleaned = {}
+
+      Object.keys(filters || {}).forEach(key => {
+         const value = filters[key]
+         // Only include filters that have meaningful values
+         if (value !== null &&
+            value !== undefined &&
+            value !== '' &&
+            value !== 'all' &&
+            String(value).trim() !== '') {
+            cleaned[key] = String(value).trim()
+         }
+      })
+
+      // Create a stable string representation
+      return JSON.stringify(Object.keys(cleaned).sort().reduce((acc, key) => {
+         acc[key] = cleaned[key]
+         return acc
+      }, {}))
+   }, [
+      filters?.search,
+      filters?.category,
+      filters?.difficulty,
+      filters?.university,
+      filters?.department,
+      filters?.subject,
+      filters?.semester,
+      filters?.sortBy,
+      filters?.sortOrder
+   ])
+
+   // Parse the stable filter string back to object
+   const processedFilters = useMemo(() => {
+      return filterString ? JSON.parse(filterString) : {}
+   }, [filterString])
+
+   // Create stable query key
+   const queryKey = useMemo(() => {
+      return ['notes', 'feed', { page, limit, filters: processedFilters }]
+   }, [page, limit, processedFilters])
+
+   return useQuery({
+      queryKey,
+      queryFn: () => notesAPI.getNotesFeed(page, limit, processedFilters),
+      keepPreviousData: true,
+      staleTime: 2 * 60 * 1000, // 2 minutes
+   })
+}
+
+// ========== ENHANCED PROFILE HOOK WITH USER CREATION ==========
+
+// Enhanced profile hook with loading states for user creation
+export const useProfileWithAutoCreation = () => {
+   const profileQuery = useGetProfile()
+   const createUserMutation = useCreateUser()
+
+   const isCreatingUser = createUserMutation.isLoading
+   const creationError = createUserMutation.error
+   const wasUserJustCreated = createUserMutation.isSuccess && !createUserMutation.isLoading
+
+   return {
+      ...profileQuery,
+      isCreatingUser,
+      creationError,
+      wasUserJustCreated,
+      isInitializing: profileQuery.isLoading || isCreatingUser,
+      // Helper function to manually trigger user creation if needed
+      createUserManually: createUserMutation.mutate
+   }
+
+   console.log('🔍 Query Key:', JSON.stringify(queryKey)) // Debug log
+
+   return useQuery({
+      queryKey,
+      queryFn: () => {
+         console.log('📡 API Call - getNotesFeed:', { page, limit, filters: processedFilters }) // Debug log
+         return notesAPI.getNotesFeed(page, limit, processedFilters)
+      },
+      keepPreviousData: true,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 30 * 60 * 1000, // 30 minutes cache
+      retry: false, // Disable retry completely
+      retryOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchInterval: false,
+      enabled: true,
+      notifyOnChangeProps: ['data', 'isLoading', 'isError', 'error'] // Only notify on these prop changes
    })
 }
 

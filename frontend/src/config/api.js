@@ -9,7 +9,7 @@ export const API_ENDPOINTS = {
   },
   NOTES: {
     UPLOAD: '/notes/upload',
-    GET_NOTES: '/notes',
+    GET_FEED: '/notes/feed',
     GET_NOTE: '/notes',
     DOWNLOAD: '/notes'
   },

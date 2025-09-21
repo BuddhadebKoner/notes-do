@@ -8,6 +8,7 @@ import {
 } from '@clerk/clerk-react'
 import ApiAuthProvider from './context/ApiAuthProvider'
 import HomePage from './_root/pages/HomePage'
+import NotesFeedPage from './_root/pages/NotesFeedPage'
 import ProfilePage from './_root/_profile/ProfilePage'
 import GoogleCallback from './components/google/GoogleCallback'
 import UploadNote from './_root/_profile/components/UploadNote'
@@ -28,6 +29,12 @@ const Navigation = () => {
                 className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
               >
                 Home
+              </Link>
+              <Link
+                to='/notes'
+                className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
+              >
+                Browse Notes
               </Link>
               <Link
                 to='/profile'
@@ -72,6 +79,7 @@ function App() {
           <main>
             <Routes>
               <Route path='/' element={<HomePage />} />
+              <Route path='/notes' element={<NotesFeedPage />} />
               <Route path='/profile/*' element={<ProfilePage />} />
               <Route path='/upload' element={<UploadNote />} />
               <Route path='/auth/google/callback' element={<GoogleCallback />} />

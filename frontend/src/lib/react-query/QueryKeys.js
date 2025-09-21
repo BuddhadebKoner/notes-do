@@ -8,7 +8,7 @@ export const QUERY_KEYS = {
 
    // Notes related queries
    UPLOAD_NOTE: ['notes', 'upload'],
-   GET_NOTES: ['notes', 'list'],
+   GET_NOTES_FEED: (page, limit, filters) => ['notes', 'feed', { page, limit, ...filters }],
    GET_NOTE: ['notes', 'detail'],
 
    // Profile related queries

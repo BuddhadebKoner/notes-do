@@ -7,7 +7,7 @@ import {
   useUser,
   useAuth as useClerkAuth,
 } from '@clerk/clerk-react'
-import { useGetProfile } from '../../lib/react-query/queriesAndMutation.js'
+import { useProfileWithAutoCreation } from '../../lib/react-query/queriesAndMutation.js'
 import { setAuthToken } from '../../config/api.js'
 import ProfileOverview from './components/ProfileOverview'
 import UploadedNotes from './components/UploadedNotes'
@@ -21,8 +21,16 @@ const ProfilePage = () => {
   const { getToken } = useClerkAuth()
   const location = useLocation()
 
-  // Automatically fetch profile data when logged in
-  const { data: profileData, isLoading: profileLoading, error: profileError } = useGetProfile()
+  // Automatically fetch profile data with user auto-creation when logged in
+  const {
+    data: profileData,
+    isLoading: profileLoading,
+    error: profileError,
+    isCreatingUser,
+    creationError,
+    isInitializing,
+    wasUserJustCreated
+  } = useProfileWithAutoCreation()
 
   // Set token when component mounts
   useEffect(() => {
@@ -56,12 +64,19 @@ const ProfilePage = () => {
     return location.pathname.startsWith(path)
   }
 
-  if (profileLoading) {
+  if (isInitializing) {
     return (
       <div className='min-h-screen flex items-center justify-center bg-gray-50'>
-        <div className='text-center'>
+        <div className='text-center max-w-md mx-auto p-6'>
           <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
-          <p className='text-gray-600'>Loading your profile...</p>
+          {isCreatingUser ? (
+            <>
+              <p className='text-gray-600 mb-2'>Setting up your profile...</p>
+              <p className='text-sm text-gray-500'>This will only take a moment</p>
+            </>
+          ) : (
+            <p className='text-gray-600'>Loading your profile...</p>
+          )}
         </div>
       </div>
     )
@@ -70,21 +85,57 @@ const ProfilePage = () => {
   return (
     <div className='min-h-screen bg-gray-50'>
       <SignedIn>
-        {profileError ? (
+        {(profileError || creationError) ? (
           <div className='min-h-screen flex items-center justify-center'>
             <div className='text-center p-8 bg-white rounded-lg shadow-lg max-w-md w-full'>
-              <h2 className='text-2xl font-bold text-gray-900 mb-4'>Profile Error</h2>
-              <p className='text-red-600 mb-4'>{profileError.message}</p>
-              <Link
-                to='/upload'
-                className='inline-block bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors'
-              >
-                Go to Upload Page
-              </Link>
+              <h2 className='text-2xl font-bold text-gray-900 mb-4'>
+                {creationError ? 'Profile Setup Error' : 'Profile Error'}
+              </h2>
+              <p className='text-red-600 mb-4'>
+                {creationError?.message || profileError?.message}
+              </p>
+              {creationError && (
+                <p className='text-sm text-gray-600 mb-4'>
+                  We encountered an issue setting up your profile. Please try refreshing the page or contact support if the problem persists.
+                </p>
+              )}
+              <div className='space-y-2'>
+                <button
+                  onClick={() => window.location.reload()}
+                  className='block w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors'
+                >
+                  Try Again
+                </button>
+                <Link
+                  to='/'
+                  className='block w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors'
+                >
+                  Go to Home
+                </Link>
+              </div>
             </div>
           </div>
         ) : (
           <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+            {/* Success notification for new users */}
+            {wasUserJustCreated && (
+              <div className='bg-green-50 border border-green-200 rounded-lg p-4 mb-6'>
+                <div className='flex items-center'>
+                  <div className='flex-shrink-0'>
+                    <span className='text-green-600 text-xl'>✅</span>
+                  </div>
+                  <div className='ml-3'>
+                    <h3 className='text-sm font-medium text-green-800'>
+                      Welcome to Notes-Do!
+                    </h3>
+                    <p className='text-sm text-green-700 mt-1'>
+                      Your profile has been created successfully. You can now upload notes, build your wishlist, and connect with other students.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Profile Header */}
             {profileData?.success && (
               <div className='bg-white rounded-lg shadow-lg p-6 mb-8'>
@@ -135,8 +186,8 @@ const ProfilePage = () => {
                         key={item.id}
                         to={item.path}
                         className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActivePath(item.path)
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'text-gray-600 hover:bg-gray-100'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'text-gray-600 hover:bg-gray-100'
                           }`}
                       >
                         <span className='text-lg'>{item.icon}</span>

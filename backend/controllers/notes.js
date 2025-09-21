@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import multer from 'multer';
 import { Readable } from 'stream';
 import { Note } from '../models/index.js';
+import { generatePDFThumbnail, generateDriveThumbnailUrl } from '../utils/thumbnailGenerator.js';
 
 // Create Google Drive service for user's personal Drive
 const getUserDriveService = (tokenData) => {
@@ -62,9 +63,19 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
          // Silently handle permission errors
       }
 
+      // Create alternative thumbnail URL if the API doesn't provide one
+      let thumbnailUrl = response.data.thumbnailLink;
+      if (!thumbnailUrl && response.data.id) {
+         // Alternative method: Use Google Drive's thumbnail API
+         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;
+      }
+
       return {
          success: true,
-         file: response.data
+         file: {
+            ...response.data,
+            thumbnailLink: thumbnailUrl
+         }
       };
 
    } catch (error) {
@@ -108,6 +119,12 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
                   }
                });
 
+               // Create alternative thumbnail URL if not available
+               let thumbnailUrl = file.thumbnailLink;
+               if (!thumbnailUrl && file.id) {
+                  thumbnailUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w300-h400`;
+               }
+
                return {
                   success: true,
                   file: {
@@ -117,7 +134,7 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
                      size: file.size || fileBuffer.length.toString(),
                      webViewLink: file.webViewLink,
                      webContentLink: file.webContentLink,
-                     thumbnailLink: file.thumbnailLink
+                     thumbnailLink: thumbnailUrl
                   },
                   warning: 'File uploaded to Google Drive successfully! Retrieved file details after API error.'
                };
@@ -301,6 +318,29 @@ export const uploadNote = async (req, res) => {
          throw new Error(driveResult.error || 'File upload failed');
       }
 
+      // Generate thumbnail from PDF first page
+      console.log('Generating thumbnail from PDF...');
+      let thumbnailResult = await generatePDFThumbnail(req.file.buffer, fileName);
+
+      // If local thumbnail generation fails, use Google Drive thumbnail as fallback
+      if (!thumbnailResult.success && driveResult.file.id && !driveResult.file.id.startsWith('local_')) {
+         console.log('Local thumbnail generation failed, using Google Drive thumbnail as fallback');
+         const driveThumbnailUrl = generateDriveThumbnailUrl(driveResult.file.id);
+         thumbnailResult = {
+            success: true,
+            thumbnailUrl: driveThumbnailUrl || driveResult.file.thumbnailLink,
+            fallback: true
+         };
+      }
+
+      // Update the drive result with the generated thumbnail
+      if (thumbnailResult.success && thumbnailResult.thumbnailUrl) {
+         driveResult.file.thumbnailLink = thumbnailResult.thumbnailUrl;
+         console.log('Thumbnail generated successfully:', thumbnailResult.thumbnailUrl);
+      } else {
+         console.warn('Thumbnail generation failed:', thumbnailResult.error || 'Unknown error');
+      }
+
       // Parse tags if it's a string
       let parsedTags = tags;
       if (typeof tags === 'string') {
@@ -457,91 +497,249 @@ export const uploadNote = async (req, res) => {
    }
 };
 
-// Get all notes
-export const getNotes = async (req, res) => {
+// Get notes feed - optimized for card display with pagination
+export const getNotesFeed = async (req, res) => {
    try {
       const {
          page = 1,
-         limit = 10,
+         limit = 12,
          university,
          department,
          subject,
          category,
          difficulty,
          semester,
-         visibility,
          search,
          sortBy = 'uploadDate',
          sortOrder = 'desc'
       } = req.query;
 
-      // Build filter object
-      const filter = { status: 'active' };
+      console.log('Feed request params:', req.query); // Debug log
+      console.log('User info:', req.user ? {
+         id: req.user._id,
+         university: req.user.academic?.university,
+         department: req.user.academic?.department
+      } : 'No user'); // Debug log
 
-      // Apply filters
-      if (university) filter.university = new RegExp(university, 'i');
-      if (department) filter.department = new RegExp(department, 'i');
-      if (subject) filter.subject = new RegExp(subject, 'i');
-      if (category) filter.category = category;
-      if (difficulty) filter.difficulty = difficulty;
-      if (semester) filter.semester = parseInt(semester);
-      if (visibility) filter.visibility = visibility;
+      // Pagination
+      const pageNum = Math.max(1, parseInt(page));
+      const limitNum = Math.min(Math.max(1, parseInt(limit)), 24); // Between 1-24 per page
+      const skip = (pageNum - 1) * limitNum;
 
-      // Search functionality
-      if (search) {
-         filter.$or = [
-            { title: new RegExp(search, 'i') },
-            { description: new RegExp(search, 'i') },
-            { subject: new RegExp(search, 'i') },
-            { tags: new RegExp(search, 'i') }
+      // Build aggregation pipeline for better performance
+      const pipeline = [];
+
+      // Match stage - filter documents
+      const matchStage = {
+         status: 'approved',
+         'account.isActive': { $ne: false }, // Ensure user account is active
+      };
+
+      // Visibility filtering - more permissive approach
+      if (req.user?.academic?.university) {
+         matchStage.$or = [
+            { visibility: 'public' },
+            {
+               visibility: 'university',
+               'academic.university': { $regex: new RegExp(req.user.academic.university, 'i') }
+            },
+            {
+               visibility: 'department',
+               'academic.university': { $regex: new RegExp(req.user.academic.university, 'i') },
+               'academic.department': { $regex: new RegExp(req.user.academic.department || '', 'i') }
+            }
+         ];
+      } else {
+         // If no user academic info, show public notes and university notes
+         matchStage.$or = [
+            { visibility: 'public' },
+            { visibility: 'university' }
          ];
       }
 
-      // Pagination
-      const pageNum = parseInt(page);
-      const limitNum = parseInt(limit);
-      const skip = (pageNum - 1) * limitNum;
+      // Apply additional filters
+      if (university?.trim()) {
+         matchStage['academic.university'] = { $regex: new RegExp(university.trim(), 'i') };
+      }
+      if (department?.trim()) {
+         matchStage['academic.department'] = { $regex: new RegExp(department.trim(), 'i') };
+      }
+      if (subject?.trim()) {
+         matchStage['subject.name'] = { $regex: new RegExp(subject.trim(), 'i') };
+      }
+      if (category?.trim()) {
+         matchStage['subject.category'] = category.trim();
+      }
+      if (difficulty?.trim()) {
+         matchStage['subject.difficulty'] = difficulty.trim();
+      }
+      if (semester) {
+         const semesterNum = parseInt(semester);
+         if (semesterNum >= 1 && semesterNum <= 12) {
+            matchStage['academic.semester'] = semesterNum;
+         }
+      }
 
-      // Sort object
-      const sort = {};
-      sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+      // Search functionality
+      if (search?.trim()) {
+         const searchRegex = { $regex: new RegExp(search.trim(), 'i') };
+         matchStage.$and = matchStage.$and || [];
+         matchStage.$and.push({
+            $or: [
+               { title: searchRegex },
+               { description: searchRegex },
+               { 'subject.name': searchRegex },
+               { 'academic.university': searchRegex },
+               { 'academic.department': searchRegex },
+               { tags: searchRegex }
+            ]
+         });
+      }
 
-      // Execute query
-      const notes = await Note.find(filter)
-         .sort(sort)
-         .skip(skip)
-         .limit(limitNum)
-         .populate('uploader', 'firstName lastName email');
+      console.log('Match stage criteria:', JSON.stringify(matchStage, null, 2)); // Debug log
+      pipeline.push({ $match: matchStage });
 
-      // Get total count for pagination
-      const total = await Note.countDocuments(filter);
-
-      res.json({
-         success: true,
-         notes,
-         pagination: {
-            current: pageNum,
-            total: Math.ceil(total / limitNum),
-            count: notes.length,
-            totalNotes: total
-         },
-         filters: {
-            university,
-            department,
-            subject,
-            category,
-            difficulty,
-            semester,
-            visibility,
-            search
+      // Lookup uploader information
+      pipeline.push({
+         $lookup: {
+            from: 'users',
+            localField: 'uploader',
+            foreignField: '_id',
+            as: 'uploader',
+            pipeline: [{
+               $project: {
+                  'profile.firstName': 1,
+                  'profile.lastName': 1,
+                  'profile.avatar': 1,
+                  username: 1
+               }
+            }]
          }
       });
 
+      // Unwind uploader (convert array to object)
+      pipeline.push({
+         $unwind: {
+            path: '$uploader',
+            preserveNullAndEmptyArrays: true
+         }
+      });
+
+      // Add computed fields
+      pipeline.push({
+         $addFields: {
+            'social.likesCount': { $size: { $ifNull: ['$social.likes', []] } },
+            uploaderName: {
+               $cond: {
+                  if: '$uploader',
+                  then: {
+                     $trim: {
+                        input: {
+                           $concat: [
+                              { $ifNull: ['$uploader.profile.firstName', ''] },
+                              ' ',
+                              { $ifNull: ['$uploader.profile.lastName', ''] }
+                           ]
+                        }
+                     }
+                  },
+                  else: 'Anonymous'
+               }
+            }
+         }
+      });
+
+      // Project only essential fields for simplified card display
+      pipeline.push({
+         $project: {
+            title: 1,
+            subject: '$subject.name',
+            viewUrl: '$file.viewUrl',
+            downloadUrl: '$file.downloadUrl',
+            driveFileId: '$file.driveFileId',
+            thumbnailUrl: '$file.thumbnailUrl',
+            'stats.views': '$social.views',
+            'stats.likes': '$social.likesCount',
+            'uploader.name': '$uploaderName',
+            'uploader.avatar': '$uploader.profile.avatar'
+         }
+      });
+
+      // Sort - updated for flattened structure
+      const sortStage = {};
+      if (sortBy === 'social.views') {
+         sortStage['stats.views'] = sortOrder === 'asc' ? 1 : -1;
+      } else if (sortBy === 'social.downloads') {
+         sortStage['stats.downloads'] = sortOrder === 'asc' ? 1 : -1;
+      } else if (sortBy === 'social.rating.averageRating') {
+         sortStage['stats.rating'] = sortOrder === 'asc' ? 1 : -1;
+      } else if (sortBy === 'title') {
+         sortStage.title = sortOrder === 'asc' ? 1 : -1;
+      } else {
+         sortStage.uploadDate = sortOrder === 'asc' ? 1 : -1;
+      }
+      pipeline.push({ $sort: sortStage });
+
+      // Create pipeline for counting (without skip/limit)
+      const countPipeline = [...pipeline, { $count: 'total' }];
+
+      // Add pagination
+      pipeline.push({ $skip: skip });
+      pipeline.push({ $limit: limitNum });
+
+      // Execute both queries in parallel
+      const [notes, countResult] = await Promise.all([
+         Note.aggregate(pipeline),
+         Note.aggregate(countPipeline)
+      ]);
+
+      const total = countResult[0]?.total || 0;
+
+      // Return only essential fields for simplified card display
+      const transformedNotes = notes.map(note => ({
+         _id: note._id,
+         title: note.title,
+         subject: note.subject || '',
+         viewUrl: note.viewUrl,
+         downloadUrl: note.downloadUrl,
+         driveFileId: note.driveFileId,
+         thumbnailUrl: note.thumbnailUrl,
+         stats: {
+            views: note.stats?.views || 0,
+            likes: note.stats?.likes || 0
+         },
+         uploader: {
+            name: note.uploader?.name || 'Anonymous',
+            avatar: note.uploader?.avatar
+         }
+      }));
+
+      const response = {
+         success: true,
+         notes: transformedNotes,
+         pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil(total / limitNum),
+            itemsPerPage: limitNum,
+            totalItems: total,
+            hasNextPage: pageNum < Math.ceil(total / limitNum),
+            hasPrevPage: pageNum > 1
+         },
+         filters: {
+            search: search || null,
+            sortBy,
+            sortOrder
+         }
+      };
+
+      console.log(`Feed response: ${transformedNotes.length} notes, page ${pageNum}/${Math.ceil(total / limitNum)}`);
+      res.json(response);
+
    } catch (error) {
-      console.error('Get notes error:', error);
+      console.error('Get notes feed error:', error);
       res.status(500).json({
          success: false,
-         message: 'Failed to fetch notes',
+         message: 'Failed to fetch notes feed',
          error: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
    }
@@ -658,6 +856,30 @@ export const cleanupLocalFiles = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to cleanup files',
+         error: error.message
+      });
+   }
+};
+
+// Cleanup old thumbnail files (utility function)
+export const cleanupThumbnails = async (req, res) => {
+   try {
+      const { cleanupOldThumbnails } = await import('../utils/thumbnailGenerator.js');
+      const maxAgeHours = req.query.maxAge ? parseInt(req.query.maxAge) : 24;
+
+      const cleanedCount = await cleanupOldThumbnails(maxAgeHours);
+
+      res.json({
+         success: true,
+         message: `Cleaned up ${cleanedCount} old thumbnail files`,
+         filesRemoved: cleanedCount
+      });
+
+   } catch (error) {
+      console.error('Thumbnail cleanup error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to cleanup thumbnails',
          error: error.message
       });
    }

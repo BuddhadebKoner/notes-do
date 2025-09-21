@@ -150,20 +150,6 @@ export const notesAPI = {
       }
    },
 
-   // Get notes with filters
-   getNotes: async (filters = {}) => {
-      try {
-         const config = await getAuthConfig()
-         const response = await api.get(API_ENDPOINTS.NOTES.GET_NOTES, {
-            params: filters,
-            ...config
-         })
-         return response.data
-      } catch (error) {
-         throw error.response?.data || error.message
-      }
-   },
-
    // Get single note by ID
    getNoteById: async (noteId) => {
       try {
@@ -171,6 +157,37 @@ export const notesAPI = {
          const response = await api.get(`${API_ENDPOINTS.NOTES.GET_NOTE}/${noteId}`, config)
          return response.data
       } catch (error) {
+         throw error.response?.data || error.message
+      }
+   },
+
+   // Get notes feed with pagination and filters - optimized for cards
+   getNotesFeed: async (page = 1, limit = 12, filters = {}) => {
+      try {
+         const config = await getAuthConfig()
+
+         // Prepare query parameters, excluding 'all' values and empty strings
+         const params = {
+            page: parseInt(page) || 1,
+            limit: Math.min(parseInt(limit) || 12, 24), // Max 24 per page
+         }
+
+         // Add filters, excluding 'all' values and empty/falsy values
+         Object.entries(filters).forEach(([key, value]) => {
+            if (value && value !== 'all' && String(value).trim() !== '') {
+               params[key] = String(value).trim()
+            }
+         })
+
+         console.log('API Request params:', params) // Debug log
+
+         const response = await api.get(API_ENDPOINTS.NOTES.GET_FEED, {
+            params,
+            ...config
+         })
+         return response.data
+      } catch (error) {
+         console.error('getNotesFeed API error:', error) // Debug log
          throw error.response?.data || error.message
       }
    }

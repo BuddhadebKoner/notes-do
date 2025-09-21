@@ -45,14 +45,6 @@ const UploadNote = () => {
       defaultValues: defaultUploadValues,
    })
 
-   const handleFileChange = (e) => {
-      const file = e.target.files[0]
-      if (file) {
-         form.setValue('noteFile', file)
-         form.trigger('noteFile') // Trigger validation
-      }
-   }
-
    const onSubmit = async (values) => {
       try {
          // Get Clerk token
@@ -156,7 +148,7 @@ const UploadNote = () => {
                <FormField
                   control={form.control}
                   name='noteFile'
-                  render={({ field: { onChange, ...field } }) => (
+                  render={({ field: { value, onChange, ...field } }) => (
                      <FormItem>
                         <FormLabel>PDF File *</FormLabel>
                         <FormControl>
@@ -166,15 +158,17 @@ const UploadNote = () => {
                                  accept='.pdf'
                                  ref={fileInputRef}
                                  onChange={(e) => {
-                                    handleFileChange(e)
-                                    onChange(e.target.files[0])
+                                    const file = e.target.files?.[0]
+                                    if (file) {
+                                       onChange(file) // Update form state
+                                    }
                                  }}
                                  className='file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-                                 {...field}
+                              // Don't spread field props for file inputs
                               />
-                              {form.watch('noteFile') && (
+                              {value && (
                                  <p className='text-sm text-green-600'>
-                                    Selected: {form.watch('noteFile').name} ({(form.watch('noteFile').size / 1024 / 1024).toFixed(2)} MB)
+                                    Selected: {value.name} ({(value.size / 1024 / 1024).toFixed(2)} MB)
                                  </p>
                               )}
                            </div>
@@ -437,7 +431,7 @@ const UploadNote = () => {
                            type='button'
                            variant='outline'
                            onClick={() => {
-                              form.reset()
+                              form.reset(defaultUploadValues)
                               if (fileInputRef.current) {
                                  fileInputRef.current.value = ''
                               }
