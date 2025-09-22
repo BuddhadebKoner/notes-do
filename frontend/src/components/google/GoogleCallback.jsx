@@ -4,53 +4,17 @@ import { useNavigate } from 'react-router-dom'
 import { API_ENDPOINTS } from '../../config/api.js'
 
 const GoogleCallback = () => {
-   const { getToken, isLoaded, isSignedIn } = useClerkAuth()
+   const { getToken } = useClerkAuth()
    const navigate = useNavigate()
    const [status, setStatus] = useState('processing')
    const [message, setMessage] = useState('Processing your Google Drive connection...')
-   const [hasProcessed, setHasProcessed] = useState(false)
 
    useEffect(() => {
-      // Prevent multiple executions
-      if (hasProcessed) {
-         console.log('Already processed, skipping...')
-         return
-      }
-
       const handleCallback = async () => {
          try {
             console.log('Processing Google Drive callback...')
             console.log('Current URL:', window.location.href)
             console.log('API Base URL:', API_ENDPOINTS.BASE_URL)
-
-            // Ensure we're actually on the callback route
-            if (!window.location.pathname.includes('/auth/google/callback')) {
-               console.log('Not on callback route, component should not be processing')
-               setStatus('error')
-               setMessage('This component should only be accessed via Google OAuth callback')
-               setTimeout(() => navigate('/'), 2000)
-               setHasProcessed(true)
-               return
-            }
-
-            // Check if Clerk is loaded first
-            if (!isLoaded) {
-               console.log('Clerk not loaded yet, waiting...')
-               setMessage('Loading authentication...')
-               return // Just return, useEffect will re-run when isLoaded becomes true
-            }
-
-            // Mark as processing to prevent duplicate calls
-            setHasProcessed(true)
-
-            // Check if user is signed in
-            if (!isSignedIn) {
-               console.log('User not signed in')
-               setStatus('error')
-               setMessage('You must be signed in to complete Google Drive connection. Please sign in first.')
-               setTimeout(() => navigate('/'), 3000)
-               return
-            }
 
             // Get the authorization code from URL
             const urlParams = new URLSearchParams(window.location.search)
@@ -165,16 +129,8 @@ const GoogleCallback = () => {
          }
       }
 
-      // Only run if we're actually on the callback route
-      if (window.location.pathname.includes('/auth/google/callback')) {
-         handleCallback()
-      } else {
-         console.log('GoogleCallback component rendered on wrong route:', window.location.pathname)
-         setStatus('error')
-         setMessage('Component loaded incorrectly')
-         navigate('/')
-      }
-   }, [getToken, navigate, isLoaded, isSignedIn, hasProcessed])
+      handleCallback()
+   }, [getToken, navigate])
 
    const getStatusIcon = () => {
       if (status === 'processing') {
