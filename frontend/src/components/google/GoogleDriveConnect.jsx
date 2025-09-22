@@ -11,20 +11,58 @@ const GoogleDriveConnect = ({ onConnected }) => {
    const connectGoogleDrive = async () => {
       setIsConnecting(true)
       setError(null)
+
       try {
-         // Get Clerk token for authentication
-         const token = await getToken()
+         console.log('Starting Google Drive connection...')
+         console.log('API Base URL:', API_ENDPOINTS.BASE_URL)
+
+         // Get Clerk token for authentication with retry logic
+         let token = null;
+         let retries = 3;
+
+         while (retries > 0 && !token) {
+            try {
+               console.log(`Attempting to get token (attempt ${4 - retries})...`)
+               token = await getToken()
+               if (token) {
+                  console.log('Token obtained successfully')
+                  break;
+               }
+            } catch (tokenError) {
+               console.warn(`Token fetch attempt failed, ${retries - 1} retries left:`, tokenError)
+               retries--;
+               if (retries > 0) {
+                  await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1s before retry
+               }
+            }
+         }
+
          if (!token) {
-            throw new Error('No authentication token available')
+            console.error('Failed to obtain authentication token after all retries')
+            throw new Error('Authentication failed. Please sign in again.')
          }
 
          // Get auth URL from backend
-         const response = await fetch(`${API_ENDPOINTS.BASE_URL}${API_ENDPOINTS.GOOGLE.DRIVE_AUTH}`, {
+         const apiUrl = `${API_ENDPOINTS.BASE_URL}${API_ENDPOINTS.GOOGLE.DRIVE_AUTH}`
+         console.log('Requesting Google Drive auth URL from:', apiUrl)
+
+         const response = await fetch(apiUrl, {
             headers: {
-               'Authorization': `Bearer ${token}`
+               'Authorization': `Bearer ${token}`,
+               'Content-Type': 'application/json'
             }
          })
+
+         console.log('Response status:', response.status)
+
+         if (!response.ok) {
+            const errorText = await response.text()
+            console.error('Server responded with error:', response.status, errorText)
+            throw new Error(`Server error (${response.status}): ${errorText}`)
+         }
+
          const data = await response.json()
+         console.log('Server response:', data)
 
          if (data.success) {
             // Store the current page URL to return after OAuth
@@ -107,9 +145,17 @@ const GoogleDriveConnect = ({ onConnected }) => {
                   {isConnecting ? 'Connecting...' : '🔗 Connect Google Drive'}
                </button>
                {error && (
-                  <p className='text-sm text-red-600 mt-2'>
-                     Error: {error}
-                  </p>
+                  <div className='mt-3 p-3 bg-red-50 border border-red-200 rounded-md'>
+                     <p className='text-sm text-red-600 font-medium mb-1'>
+                        Connection Failed
+                     </p>
+                     <p className='text-xs text-red-500'>
+                        {error}
+                     </p>
+                     <p className='text-xs text-gray-500 mt-2'>
+                        If this persists, try signing out and back in, or contact support.
+                     </p>
+                  </div>
                )}
             </div>
          )}

@@ -26,7 +26,7 @@ export const API_ENDPOINTS = {
   },
   GOOGLE: {
     DRIVE_AUTH: '/google/google-drive-auth',
-    DRIVE_CALLBACK: '/google/google-drive-callback'
+    CALLBACK: '/google/callback'
   },
 }
 
