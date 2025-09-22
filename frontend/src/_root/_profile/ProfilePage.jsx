@@ -9,12 +9,17 @@ import {
 } from '@clerk/clerk-react'
 import { useProfileWithAutoCreation } from '../../lib/react-query/queriesAndMutation.js'
 import { setAuthToken } from '../../config/api.js'
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card.jsx'
+import { Button } from '../../components/ui/button.jsx'
+import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar.jsx'
+import { Badge } from '../../components/ui/badge.jsx'
 import ProfileOverview from './components/ProfileOverview'
 import UploadedNotes from './components/UploadedNotes'
 import Wishlist from './components/Wishlist'
 import Favorites from './components/Favorites'
 import Activity from './components/Activity'
 import Settings from './components/Settings'
+import { BarChart2, Bookmark, CircleUser, FileText, Heart } from 'lucide-react'
 
 const ProfilePage = () => {
   const { user: clerkUser } = useUser()
@@ -49,12 +54,12 @@ const ProfilePage = () => {
 
   // Navigation items
   const navigationItems = [
-    { id: 'overview', label: 'Overview', path: '/profile', icon: '👤' },
-    { id: 'uploaded', label: 'My Notes', path: '/profile/uploaded', icon: '📄' },
-    { id: 'favorites', label: 'Favorites', path: '/profile/favorites', icon: '❤️' },
-    { id: 'wishlist', label: 'Wishlist', path: '/profile/wishlist', icon: '🔖' },
-    { id: 'activity', label: 'Activity', path: '/profile/activity', icon: '📊' },
-    { id: 'settings', label: 'Settings', path: '/profile/settings', icon: '⚙️' }
+    { id: 'overview', label: 'Overview', path: '/profile', icon: <CircleUser /> },
+    { id: 'uploaded', label: 'My Notes', path: '/profile/uploaded', icon: <FileText size={18} /> },
+    { id: 'favorites', label: 'Favorites', path: '/profile/favorites', icon: <Heart size={18} /> },
+    { id: 'wishlist', label: 'Wishlist', path: '/profile/wishlist', icon: <Bookmark size={18} /> },
+    { id: 'activity', label: 'Activity', path: '/profile/activity', icon: <BarChart2 size={18} /> },
+    { id: 'settings', label: 'Settings', path: '/profile/settings', icon: '' }
   ]
 
   const isActivePath = (path) => {
@@ -87,115 +92,136 @@ const ProfilePage = () => {
       <SignedIn>
         {(profileError || creationError) ? (
           <div className='min-h-screen flex items-center justify-center'>
-            <div className='text-center p-8 bg-white rounded-lg shadow-lg max-w-md w-full'>
-              <h2 className='text-2xl font-bold text-gray-900 mb-4'>
-                {creationError ? 'Profile Setup Error' : 'Profile Error'}
-              </h2>
-              <p className='text-red-600 mb-4'>
-                {creationError?.message || profileError?.message}
-              </p>
-              {creationError && (
-                <p className='text-sm text-gray-600 mb-4'>
-                  We encountered an issue setting up your profile. Please try refreshing the page or contact support if the problem persists.
+            <Card className='max-w-md w-full'>
+              <CardHeader className='text-center'>
+                <CardTitle className='text-2xl text-gray-900'>
+                  {creationError ? 'Profile Setup Error' : 'Profile Error'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='text-center space-y-4'>
+                <p className='text-red-600'>
+                  {creationError?.message || profileError?.message}
                 </p>
-              )}
-              <div className='space-y-2'>
-                <button
-                  onClick={() => window.location.reload()}
-                  className='block w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors'
-                >
-                  Try Again
-                </button>
-                <Link
-                  to='/'
-                  className='block w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors'
-                >
-                  Go to Home
-                </Link>
-              </div>
-            </div>
+                {creationError && (
+                  <p className='text-sm text-gray-600'>
+                    We encountered an issue setting up your profile. Please try refreshing the page or contact support if the problem persists.
+                  </p>
+                )}
+                <div className='space-y-2'>
+                  <Button
+                    onClick={() => window.location.reload()}
+                    className='w-full'
+                  >
+                    Try Again
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className='w-full'
+                  >
+                    <Link to='/'>
+                      Go to Home
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : (
           <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
             {/* Success notification for new users */}
             {wasUserJustCreated && (
-              <div className='bg-green-50 border border-green-200 rounded-lg p-4 mb-6'>
-                <div className='flex items-center'>
-                  <div className='flex-shrink-0'>
-                    <span className='text-green-600 text-xl'>✅</span>
+              <Card className='mb-6 border-green-200 bg-green-50'>
+                <CardContent className='pt-6'>
+                  <div className='flex items-center'>
+                    <div className='flex-shrink-0'>
+                      <span className='text-green-600 text-xl'>✅</span>
+                    </div>
+                    <div className='ml-3'>
+                      <h3 className='text-sm font-medium text-green-800'>
+                        Welcome to Notes-Do!
+                      </h3>
+                      <p className='text-sm text-green-700 mt-1'>
+                        Your profile has been created successfully. You can now upload notes, build your wishlist, and connect with other students.
+                      </p>
+                    </div>
                   </div>
-                  <div className='ml-3'>
-                    <h3 className='text-sm font-medium text-green-800'>
-                      Welcome to Notes-Do!
-                    </h3>
-                    <p className='text-sm text-green-700 mt-1'>
-                      Your profile has been created successfully. You can now upload notes, build your wishlist, and connect with other students.
-                    </p>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Profile Header */}
             {profileData?.success && (
-              <div className='bg-white rounded-lg shadow-lg p-6 mb-8'>
-                <div className='flex items-center space-x-6'>
-                  <img
-                    src={profileData.user.profile.avatar || '/default-avatar.png'}
-                    alt={profileData.user.profile.fullName}
-                    className='h-20 w-20 rounded-full object-cover'
-                  />
-                  <div>
-                    <h1 className='text-3xl font-bold text-gray-900'>
-                      {profileData.user.profile.fullName}
-                    </h1>
-                    <p className='text-gray-600'>@{profileData.user.username}</p>
-                    <p className='text-sm text-gray-500'>
-                      {profileData.user.academic.university} • {profileData.user.academic.department}
-                    </p>
+              <Card className='mb-8'>
+                <CardContent className='p-6'>
+                  <div className='flex items-center space-x-6'>
+                    <Avatar className='h-20 w-20'>
+                      <AvatarImage
+                        src={profileData.user.profile.avatar || '/default-avatar.png'}
+                        alt={profileData.user.profile.fullName}
+                      />
+                      <AvatarFallback>
+                        {profileData.user.profile.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h1 className='text-3xl font-bold text-gray-900'>
+                        {profileData.user.profile.fullName}
+                      </h1>
+                      <p className='text-gray-600'>@{profileData.user.username}</p>
+                      <div className='flex gap-2 mt-1'>
+                        <Badge variant="secondary">{profileData.user.academic.university}</Badge>
+                        <Badge variant="outline">{profileData.user.academic.department}</Badge>
+                      </div>
+                    </div>
+                    <div className='flex-1'></div>
+                    <div className='flex space-x-6 text-center'>
+                      <div>
+                        <div className='text-2xl font-bold text-blue-600'>{profileData.user.activity.totalUploads}</div>
+                        <div className='text-sm text-gray-500'>Notes</div>
+                      </div>
+                      <div>
+                        <div className='text-2xl font-bold text-green-600'>{profileData.user.activity.followers.length}</div>
+                        <div className='text-sm text-gray-500'>Followers</div>
+                      </div>
+                      <div>
+                        <div className='text-2xl font-bold text-purple-600'>{profileData.user.activity.following.length}</div>
+                        <div className='text-sm text-gray-500'>Following</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className='flex-1'></div>
-                  <div className='flex space-x-6 text-center'>
-                    <div>
-                      <div className='text-2xl font-bold text-blue-600'>{profileData.user.activity.totalUploads}</div>
-                      <div className='text-sm text-gray-500'>Notes</div>
-                    </div>
-                    <div>
-                      <div className='text-2xl font-bold text-green-600'>{profileData.user.activity.followers.length}</div>
-                      <div className='text-sm text-gray-500'>Followers</div>
-                    </div>
-                    <div>
-                      <div className='text-2xl font-bold text-purple-600'>{profileData.user.activity.following.length}</div>
-                      <div className='text-sm text-gray-500'>Following</div>
-                    </div>
-                  </div>
-                </div>
-                {profileData.user.profile.bio && (
-                  <p className='text-gray-700 mt-4'>{profileData.user.profile.bio}</p>
-                )}
-              </div>
+                  {profileData.user.profile.bio && (
+                    <p className='text-gray-700 mt-4'>{profileData.user.profile.bio}</p>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             <div className='flex gap-8'>
               {/* Sidebar Navigation */}
               <div className='w-64 flex-shrink-0'>
-                <nav className='bg-white rounded-lg shadow-lg p-4'>
-                  <div className='space-y-2'>
-                    {navigationItems.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={item.path}
-                        className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActivePath(item.path)
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'text-gray-600 hover:bg-gray-100'
-                          }`}
-                      >
-                        <span className='text-lg'>{item.icon}</span>
-                        <span>{item.label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </nav>
+                <Card>
+                  <CardContent className='p-4'>
+                    <nav className='space-y-2'>
+                      {navigationItems.map((item) => (
+                        <Button
+                          key={item.id}
+                          asChild
+                          variant={isActivePath(item.path) ? "default" : "ghost"}
+                          className="w-full justify-start"
+                        >
+                          <Link
+                            to={item.path}
+                            className='flex items-center space-x-3'
+                          >
+                            <span className='text-lg'>{item.icon}</span>
+                            <span>{item.label}</span>
+                          </Link>
+                        </Button>
+                      ))}
+                    </nav>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Main Content */}
@@ -217,17 +243,21 @@ const ProfilePage = () => {
 
       <SignedOut>
         <div className='min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-100'>
-          <div className='text-center p-8 bg-white rounded-lg shadow-lg max-w-md w-full'>
-            <h1 className='text-4xl font-bold text-gray-900 mb-6'>Profile</h1>
-            <p className='text-lg text-gray-600 mb-6'>
-              Please sign in to view your profile
-            </p>
-            <SignInButton mode='modal'>
-              <button className='bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg'>
-                Sign In
-              </button>
-            </SignInButton>
-          </div>
+          <Card className='max-w-md w-full'>
+            <CardHeader className='text-center'>
+              <CardTitle className='text-4xl font-bold text-gray-900'>Profile</CardTitle>
+            </CardHeader>
+            <CardContent className='text-center'>
+              <p className='text-lg text-gray-600 mb-6'>
+                Please sign in to view your profile
+              </p>
+              <SignInButton mode='modal'>
+                <Button size="lg">
+                  Sign In
+                </Button>
+              </SignInButton>
+            </CardContent>
+          </Card>
         </div>
       </SignedOut>
     </div>

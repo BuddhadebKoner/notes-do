@@ -21,7 +21,8 @@ export const API_ENDPOINTS = {
     FAVORITES: '/profile/favorites',
     FOLLOWERS: '/profile/followers',
     FOLLOWING: '/profile/following',
-    STATS: '/profile/stats'
+    STATS: '/profile/stats',
+    PUBLIC_PROFILE: '/profile/user'
   },
 }
 

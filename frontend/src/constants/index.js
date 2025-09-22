@@ -1,5 +1,5 @@
 // Application constants
-export const APP_NAME = 'Notes App'
+export const APP_NAME = 'Notes Doo'
 export const APP_VERSION = '1.0.0'
 
 // Routes

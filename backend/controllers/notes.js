@@ -1,7 +1,18 @@
 import { google } from 'googleapis';
 import multer from 'multer';
 import { Readable } from 'stream';
-import { Note } from '../models/index.js';
+import mongoose from 'mongoose';
+import { Note, User } from '../models/index.js';
+
+// Helper function to generate Google Drive URLs
+const generateDriveUrls = (driveFileId) => {
+   return {
+      viewUrl: `https://drive.google.com/file/d/${driveFileId}/preview`, // For iframe embedding
+      directViewUrl: `https://drive.google.com/file/d/${driveFileId}/view`, // For opening in new tab
+      downloadUrl: `https://drive.google.com/uc?id=${driveFileId}&export=download`, // For direct download
+      thumbnailUrl: `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w300-h400` // For thumbnail
+   };
+};
 
 // Create Google Drive service for user's personal Drive
 const getUserDriveService = (tokenData) => {
@@ -66,7 +77,7 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
       let thumbnailUrl = response.data.thumbnailLink;
       if (!thumbnailUrl && response.data.id) {
          // Alternative method: Use Google Drive's thumbnail API
-         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;  
+         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;
       }
 
       return {
@@ -363,9 +374,10 @@ export const uploadNote = async (req, res) => {
             driveFileName: driveResult.file.name,
             mimeType: driveResult.file.mimeType || 'application/pdf',
             size: parseInt(driveResult.file.size) || req.file.size,
-            downloadUrl: driveResult.file.webContentLink || driveResult.file.webViewLink,
-            viewUrl: driveResult.file.webViewLink,
-            thumbnailUrl: driveResult.file.thumbnailLink,
+            downloadUrl: generateDriveUrls(driveResult.file.id).downloadUrl,
+            viewUrl: generateDriveUrls(driveResult.file.id).viewUrl,
+            directViewUrl: generateDriveUrls(driveResult.file.id).directViewUrl,
+            thumbnailUrl: generateDriveUrls(driveResult.file.id).thumbnailUrl,
             lastModified: new Date()
          },
 
@@ -587,7 +599,8 @@ export const getNotesFeed = async (req, res) => {
                   'profile.firstName': 1,
                   'profile.lastName': 1,
                   'profile.avatar': 1,
-                  username: 1
+                  username: 1,
+                  _id: 1
                }
             }]
          }
@@ -637,7 +650,9 @@ export const getNotesFeed = async (req, res) => {
             'stats.views': '$social.views',
             'stats.likes': '$social.likesCount',
             'uploader.name': '$uploaderName',
-            'uploader.avatar': '$uploader.profile.avatar'
+            'uploader.avatar': '$uploader.profile.avatar',
+            'uploader.username': '$uploader.username',
+            'uploader._id': '$uploader._id'
          }
       });
 
@@ -686,7 +701,9 @@ export const getNotesFeed = async (req, res) => {
          },
          uploader: {
             name: note.uploader?.name || 'Anonymous',
-            avatar: note.uploader?.avatar
+            avatar: note.uploader?.avatar,
+            username: note.uploader?.username,
+            _id: note.uploader?._id
          }
       }));
 
@@ -721,14 +738,41 @@ export const getNotesFeed = async (req, res) => {
    }
 };
 
-// Get note by ID
+// Get detailed note by ID with proper visibility controls
 export const getNoteById = async (req, res) => {
    try {
       const { id } = req.params;
 
+      // Validate note ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+         return res.status(400).json({
+            success: false,
+            message: 'Invalid note ID format'
+         });
+      }
+
+      // Find note with all necessary populated fields
       const note = await Note.findById(id)
-         .populate('uploadedBy', 'firstName lastName email')
-         .select('-__v');
+         .populate({
+            path: 'uploader',
+            select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department account.isVerified account.role'
+         })
+         .populate({
+            path: 'comments.user',
+            select: 'profile.firstName profile.lastName profile.avatar username'
+         })
+         .populate({
+            path: 'comments.replies.user',
+            select: 'profile.firstName profile.lastName profile.avatar username'
+         })
+         .populate({
+            path: 'social.likes.user',
+            select: 'profile.firstName profile.lastName username'
+         })
+         .populate({
+            path: 'social.bookmarks.user',
+            select: 'profile.firstName profile.lastName username'
+         });
 
       if (!note) {
          return res.status(404).json({
@@ -737,17 +781,238 @@ export const getNoteById = async (req, res) => {
          });
       }
 
-      res.json({
-         success: true,
-         note
-      });
+      // Check if note is approved and active
+      if (note.status !== 'approved') {
+         return res.status(404).json({
+            success: false,
+            message: 'Note not available'
+         });
+      }
+
+      // Get requesting user info
+      let requestingUser = null;
+      let isOwner = false;
+
+      if (req.clerkId) {
+         requestingUser = await User.findOne({ clerkId: req.clerkId });
+         isOwner = requestingUser && requestingUser._id.equals(note.uploader._id);
+      }
+
+      // Determine access level based on visibility
+      let hasAccess = false;
+      let canView = false;
+      let canDownload = false;
+      let canComment = false;
+      let canLike = false;
+
+      // Owner always has full access
+      if (isOwner) {
+         hasAccess = true;
+         canView = true;
+         canDownload = true;
+         canComment = true;
+         canLike = true;
+      } else {
+         // Check visibility permissions
+         switch (note.visibility) {
+            case 'public':
+               hasAccess = true;
+               canView = true;
+               canDownload = note.permissions.canDownload;
+               canComment = note.permissions.canComment && !!requestingUser;
+               canLike = !!requestingUser;
+               break;
+
+            case 'university':
+               if (requestingUser?.academic?.university && note.academic?.university) {
+                  const sameUniversity = requestingUser.academic.university.toLowerCase() ===
+                     note.academic.university.toLowerCase();
+                  hasAccess = sameUniversity;
+                  canView = sameUniversity;
+                  canDownload = sameUniversity && note.permissions.canDownload;
+                  canComment = sameUniversity && note.permissions.canComment;
+                  canLike = sameUniversity;
+               }
+               break;
+
+            case 'department':
+               if (requestingUser?.academic?.university && requestingUser?.academic?.department &&
+                  note.academic?.university && note.academic?.department) {
+                  const sameUniversity = requestingUser.academic.university.toLowerCase() ===
+                     note.academic.university.toLowerCase();
+                  const sameDepartment = requestingUser.academic.department.toLowerCase() ===
+                     note.academic.department.toLowerCase();
+                  hasAccess = sameUniversity && sameDepartment;
+                  canView = hasAccess;
+                  canDownload = hasAccess && note.permissions.canDownload;
+                  canComment = hasAccess && note.permissions.canComment;
+                  canLike = hasAccess;
+               }
+               break;
+
+            case 'course':
+               if (requestingUser?.academic?.university && requestingUser?.academic?.department &&
+                  note.academic?.university && note.academic?.department) {
+                  const sameUniversity = requestingUser.academic.university.toLowerCase() ===
+                     note.academic.university.toLowerCase();
+                  const sameDepartment = requestingUser.academic.department.toLowerCase() ===
+                     note.academic.department.toLowerCase();
+                  // For course level, we can also check semester proximity
+                  hasAccess = sameUniversity && sameDepartment;
+                  canView = hasAccess;
+                  canDownload = hasAccess && note.permissions.canDownload;
+                  canComment = hasAccess && note.permissions.canComment;
+                  canLike = hasAccess;
+               }
+               break;
+
+            case 'private':
+               // Private notes are only visible to owner
+               hasAccess = false;
+               canView = false;
+               canDownload = false;
+               canComment = false;
+               canLike = false;
+               break;
+
+            default:
+               hasAccess = false;
+         }
+      }
+
+      // Build response based on access level
+      const baseResponse = {
+         _id: note._id,
+         title: note.title,
+         uploader: {
+            _id: note.uploader._id,
+            name: `${note.uploader.profile.firstName} ${note.uploader.profile.lastName}`.trim(),
+            username: note.uploader.username,
+            avatar: note.uploader.profile.avatar,
+            isVerified: note.uploader.account.isVerified,
+            role: note.uploader.account.role
+         },
+         uploadDate: note.uploadDate,
+         visibility: note.visibility,
+         permissions: {
+            hasAccess,
+            canView,
+            canDownload,
+            canComment,
+            canLike,
+            isOwner
+         }
+      };
+
+      if (hasAccess) {
+         // Increment view count if user has access and it's not the owner
+         if (!isOwner && requestingUser) {
+            await note.incrementViews(requestingUser._id);
+         } else if (!isOwner) {
+            await note.incrementViews();
+         }
+
+         // Check user interactions
+         let userInteractions = {};
+         if (requestingUser) {
+            userInteractions = {
+               hasLiked: note.social.likes.some(like =>
+                  like.user._id.toString() === requestingUser._id.toString()
+               ),
+               hasBookmarked: note.social.bookmarks.some(bookmark =>
+                  bookmark.user._id.toString() === requestingUser._id.toString()
+               )
+            };
+         }
+
+         const fullResponse = {
+            ...baseResponse,
+            description: note.description,
+            tags: note.tags,
+            academic: note.academic,
+            subject: note.subject,
+            file: {
+               driveFileId: note.file.driveFileId,
+               driveFileName: note.file.driveFileName,
+               mimeType: note.file.mimeType,
+               size: note.file.size,
+               viewUrl: generateDriveUrls(note.file.driveFileId).viewUrl, 
+               directViewUrl: generateDriveUrls(note.file.driveFileId).directViewUrl,
+               downloadUrl: canDownload ? generateDriveUrls(note.file.driveFileId).downloadUrl : null,
+               thumbnailUrl: note.file.thumbnailUrl || generateDriveUrls(note.file.driveFileId).thumbnailUrl,
+               pageCount: note.file.pageCount
+            },
+            content: {
+               language: note.content.language,
+               isHandwritten: note.content.isHandwritten,
+               hasImages: note.content.hasImages,
+               hasFormulas: note.content.hasFormulas,
+               keywords: note.content.keywords
+            },
+            social: {
+               likes: note.social.likes.length,
+               views: note.social.views,
+               downloads: note.social.downloads,
+               shares: note.social.shares,
+               bookmarks: note.social.bookmarks.length,
+               rating: note.social.rating
+            },
+            comments: canComment ? note.comments.map(comment => ({
+               _id: comment._id,
+               user: {
+                  _id: comment.user._id,
+                  name: `${comment.user.profile.firstName} ${comment.user.profile.lastName}`.trim(),
+                  username: comment.user.username,
+                  avatar: comment.user.profile.avatar
+               },
+               content: comment.content,
+               likes: comment.likes.length,
+               replies: comment.replies.map(reply => ({
+                  _id: reply._id,
+                  user: {
+                     _id: reply.user._id,
+                     name: `${reply.user.profile.firstName} ${reply.user.profile.lastName}`.trim(),
+                     username: reply.user.username,
+                     avatar: reply.user.profile.avatar
+                  },
+                  content: reply.content,
+                  createdAt: reply.createdAt
+               })),
+               isEdited: comment.isEdited,
+               createdAt: comment.createdAt,
+               updatedAt: comment.updatedAt
+            })) : [],
+            userInteractions,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt
+         };
+
+         res.json({
+            success: true,
+            note: fullResponse
+         });
+      } else {
+         // Limited response for restricted access
+         res.json({
+            success: true,
+            note: {
+               ...baseResponse,
+               message: `This note is ${note.visibility}. ${note.visibility === 'private'
+                  ? 'Only the owner can view this content.'
+                  : requestingUser
+                     ? `You need to be in the same ${note.visibility} to access this content.`
+                     : 'Please log in to check access permissions.'
+                  }`
+            }
+         });
+      }
 
    } catch (error) {
       console.error('Get note by ID error:', error);
       res.status(500).json({
          success: false,
-         message: 'Failed to fetch note',
-         error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+         message: 'Failed to fetch note details',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
    }
 };

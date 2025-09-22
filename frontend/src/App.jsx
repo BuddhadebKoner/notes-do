@@ -7,11 +7,13 @@ import {
   SignInButton,
 } from '@clerk/clerk-react'
 import ApiAuthProvider from './context/ApiAuthProvider'
-import HomePage from './_root/pages/HomePage'
 import NotesFeedPage from './_root/pages/NotesFeedPage'
 import ProfilePage from './_root/_profile/ProfilePage'
 import GoogleCallback from './components/google/GoogleCallback'
 import UploadNote from './_root/_profile/components/UploadNote'
+import { Upload } from 'lucide-react'
+import NoteDetails from './_root/pages/NoteDetails'
+import PublicProfile from './_root/pages/PublicProfile'
 
 // Navigation Component
 const Navigation = () => {
@@ -21,21 +23,9 @@ const Navigation = () => {
         <div className='flex justify-between h-16'>
           <div className='flex items-center space-x-8'>
             <Link to='/' className='text-xl font-bold text-gray-800'>
-              Notes App
+              Notes Doo
             </Link>
             <div className='flex space-x-4'>
-              <Link
-                to='/'
-                className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
-              >
-                Home
-              </Link>
-              <Link
-                to='/notes'
-                className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
-              >
-                Browse Notes
-              </Link>
               <Link
                 to='/profile'
                 className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
@@ -51,7 +41,7 @@ const Navigation = () => {
                 to='/upload'
                 className='bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2'
               >
-                <span>📄</span>
+                <Upload className='h-4 w-4' />
                 <span>Upload Note</span>
               </Link>
               <UserButton />
@@ -78,9 +68,10 @@ function App() {
           <Navigation />
           <main>
             <Routes>
-              <Route path='/' element={<HomePage />} />
-              <Route path='/notes' element={<NotesFeedPage />} />
+              <Route path='/' element={<NotesFeedPage />} />
               <Route path='/profile/*' element={<ProfilePage />} />
+              <Route path='/note/:id' element={<NoteDetails />} />
+              <Route path='/user/:username' element={<PublicProfile />} />
               <Route path='/upload' element={<UploadNote />} />
               <Route path='/auth/google/callback' element={<GoogleCallback />} />
             </Routes>

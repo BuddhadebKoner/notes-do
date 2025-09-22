@@ -9,6 +9,7 @@ import {
    FileText,
    User2
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 const NoteCard = ({ note, onView, onDownload }) => {
    const {
@@ -22,6 +23,8 @@ const NoteCard = ({ note, onView, onDownload }) => {
       stats = {},
       uploader = {}
    } = note
+
+   console.log('NoteCard note:', note)
 
    const [isLiked, setIsLiked] = useState(false)
 
@@ -40,13 +43,8 @@ const NoteCard = ({ note, onView, onDownload }) => {
       return null
    }
 
-   const handleView = () => {
-      if (viewUrl) {
-         window.open(viewUrl, '_blank')
-      } else if (onView) {
-         onView(_id)
-      }
-   }
+   const noteDetailsPage = `/note/${_id}`
+   const profilePage = `/user/${uploader.username || 'unknown'}`
 
    const handleDownload = () => {
       if (downloadUrl) {
@@ -64,7 +62,9 @@ const NoteCard = ({ note, onView, onDownload }) => {
    return (
       <Card className="group h-full flex flex-col hover:shadow-lg transition-all duration-300 bg-white">
          {/* PDF Preview */}
-         <div className="relative aspect-[4/3] bg-gray-50 rounded-t-lg overflow-hidden cursor-pointer" onClick={handleView}>
+         <Link
+            to={noteDetailsPage}
+            className="relative aspect-[4/3] bg-gray-50 rounded-t-lg overflow-hidden cursor-pointer">
             {getPreviewUrl() ? (
                <>
                   <img
@@ -92,18 +92,17 @@ const NoteCard = ({ note, onView, onDownload }) => {
                   </div>
                </div>
             )}
-         </div>
+         </Link>
 
          {/* Content */}
          <CardContent className="p-4 flex-1">
             {/* Title */}
-            <h3
+            <Link
+               to={noteDetailsPage}
                className="font-semibold text-lg leading-tight line-clamp-2 text-gray-900 cursor-pointer hover:text-blue-600 transition-colors mb-2"
-               onClick={handleView}
-               title={title}
             >
                {title}
-            </h3>
+            </Link>
 
             {/* Subject */}
             <p className="text-sm text-gray-600 mb-3">{subject}</p>
@@ -134,7 +133,8 @@ const NoteCard = ({ note, onView, onDownload }) => {
             </div>
 
             {/* Posted by */}
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+            <Link to={profilePage}
+               className="flex items-center gap-2 mt-3 pt-3 border-t">
                <Avatar className="w-6 h-6">
                   <AvatarImage src={uploader.avatar} alt={uploader.name} />
                   <AvatarFallback className="text-xs bg-blue-100 text-blue-600">
@@ -145,9 +145,9 @@ const NoteCard = ({ note, onView, onDownload }) => {
                   </AvatarFallback>
                </Avatar>
                <span className="text-sm text-gray-600">
-                  Posted by <span className="font-medium">{uploader.name || 'Anonymous'}</span>
+                  <span className="font-medium">{uploader.name || 'Anonymous'}</span>
                </span>
-            </div>
+            </Link>
          </CardContent>
       </Card>
    )

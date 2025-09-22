@@ -1,5 +1,9 @@
 import React from 'react'
 import { useGetActivityStats, useGetFollowers, useGetFollowing } from '../../../lib/react-query/queriesAndMutation.js'
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card.jsx'
+import { Button } from '../../../components/ui/button.jsx'
+import { Badge } from '../../../components/ui/badge.jsx'
+import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar.jsx'
 
 const Activity = () => {
    const { data: statsData, isLoading: statsLoading } = useGetActivityStats()
@@ -7,46 +11,52 @@ const Activity = () => {
    const { data: followingData, isLoading: followingLoading } = useGetFollowing()
 
    const StatCard = ({ title, value, icon, color = 'blue', description }) => (
-      <div className='bg-white p-6 rounded-lg shadow-lg'>
-         <div className='flex items-center justify-between mb-2'>
-            <div>
-               <p className='text-sm font-medium text-gray-600'>{title}</p>
-               <p className={`text-3xl font-bold text-${color}-600`}>{value || 0}</p>
+      <Card>
+         <CardContent className='p-6'>
+            <div className='flex items-center justify-between mb-2'>
+               <div>
+                  <p className='text-sm font-medium text-muted-foreground'>{title}</p>
+                  <p className={`text-3xl font-bold text-${color}-600`}>{value || 0}</p>
+               </div>
+               <div className={`text-4xl text-${color}-500`}>{icon}</div>
             </div>
-            <div className={`text-4xl text-${color}-500`}>{icon}</div>
-         </div>
-         {description && (
-            <p className='text-xs text-gray-500 mt-2'>{description}</p>
-         )}
-      </div>
+            {description && (
+               <p className='text-xs text-muted-foreground mt-2'>{description}</p>
+            )}
+         </CardContent>
+      </Card>
    )
 
    const UserCard = ({ user, type = 'follower' }) => (
-      <div className='flex items-center justify-between p-4 bg-gray-50 rounded-lg'>
+      <div className='flex items-center justify-between p-4 bg-muted/50 rounded-lg border'>
          <div className='flex items-center space-x-3'>
-            <img
-               src={user.profile?.avatar || '/default-avatar.png'}
-               alt={user.profile?.firstName}
-               className='w-10 h-10 rounded-full object-cover'
-            />
+            <Avatar className='w-10 h-10'>
+               <AvatarImage
+                  src={user.profile?.avatar || '/default-avatar.png'}
+                  alt={user.profile?.firstName}
+               />
+               <AvatarFallback>
+                  {user.profile?.firstName?.[0]}{user.profile?.lastName?.[0]}
+               </AvatarFallback>
+            </Avatar>
             <div>
-               <p className='font-medium text-gray-900'>
+               <p className='font-medium'>
                   {user.profile?.firstName} {user.profile?.lastName}
                </p>
-               <p className='text-sm text-gray-600'>@{user.username}</p>
+               <Badge variant="outline" className='text-xs mb-1'>@{user.username}</Badge>
                {user.academic?.university && (
-                  <p className='text-xs text-gray-500'>
+                  <p className='text-xs text-muted-foreground'>
                      {user.academic.university} • {user.academic.department}
                   </p>
                )}
             </div>
          </div>
-         <button className={`px-3 py-1 text-sm rounded-lg transition-colors ${type === 'following'
-               ? 'bg-red-100 text-red-700 hover:bg-red-200'
-               : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}>
+         <Button
+            size="sm"
+            variant={type === 'following' ? 'destructive' : 'default'}
+         >
             {type === 'following' ? 'Unfollow' : 'Follow Back'}
-         </button>
+         </Button>
       </div>
    )
 

@@ -7,13 +7,17 @@ import {
    getUserFollowers,
    getUserFollowing,
    updateUserProfile,
-   getUserActivityStats
+   getUserActivityStats,
+   getPublicUserProfile
 } from '../controllers/profile.js';
-import { requireAuth, requireUserInDB } from '../middleware/auth.js';
+import { requireAuth, requireUserInDB, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
+// Public route for viewing user profiles (optional auth to check privacy settings)
+router.get('/user/:username', optionalAuth, getPublicUserProfile);
+
+// Apply authentication middleware to all other routes
 router.use(requireAuth);
 router.use(requireUserInDB);
 

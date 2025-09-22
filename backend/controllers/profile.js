@@ -538,3 +538,170 @@ export const getUserActivityStats = async (req, res) => {
       });
    }
 };
+
+// Get public user profile by username
+export const getPublicUserProfile = async (req, res) => {
+   try {
+      const { username } = req.params;
+
+      if (!username) {
+         return res.status(400).json({
+            success: false,
+            message: 'Username is required'
+         });
+      }
+
+      // Find the target user
+      const targetUser = await User.findOne({
+         username: username.toLowerCase(),
+         'account.isActive': true
+      })
+         .populate({
+            path: 'activity.notesUploaded',
+            select: 'title subject.name file.downloadUrl uploadDate visibility.isPublic'
+         })
+         .populate({
+            path: 'activity.following',
+            select: 'profile.firstName profile.lastName profile.avatar username'
+         })
+         .populate({
+            path: 'activity.followers',
+            select: 'profile.firstName profile.lastName profile.avatar username'
+         });
+
+      if (!targetUser) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found'
+         });
+      }
+
+      // Get the requesting user's info (if authenticated)
+      let requestingUser = null;
+      let isOwnProfile = false;
+
+      if (req.clerkId) {
+         requestingUser = await User.findOne({ clerkId: req.clerkId });
+         isOwnProfile = requestingUser && requestingUser._id.equals(targetUser._id);
+      }
+
+      // Determine what data to show based on privacy settings
+      const profileVisibility = targetUser.preferences?.privacy?.profileVisibility || 'university';
+
+      // Base profile data (always visible)
+      const baseProfile = {
+         id: targetUser._id,
+         username: targetUser.username,
+         profile: {
+            firstName: targetUser.profile.firstName,
+            lastName: targetUser.profile.lastName,
+            fullName: targetUser.profile.fullName,
+            avatar: targetUser.profile.avatar,
+         },
+         academic: {
+            university: targetUser.academic.university,
+            department: targetUser.academic.department,
+            degree: targetUser.academic.degree
+         },
+         account: {
+            isVerified: targetUser.account.isVerified,
+            role: targetUser.account.role,
+            createdAt: targetUser.createdAt
+         }
+      };
+
+      // Determine access level
+      let hasAccess = false;
+      let canFollow = false;
+
+      if (isOwnProfile) {
+         // Own profile - full access
+         hasAccess = true;
+         canFollow = false;
+      } else if (profileVisibility === 'public') {
+         // Public profile - everyone can see
+         hasAccess = true;
+         canFollow = true;
+      } else if (profileVisibility === 'university' && requestingUser) {
+         // University-only - check if same university
+         const sameUniversity = requestingUser.academic?.university &&
+            targetUser.academic?.university &&
+            requestingUser.academic.university.toLowerCase() ===
+            targetUser.academic.university.toLowerCase();
+         hasAccess = sameUniversity;
+         canFollow = sameUniversity;
+      } else if (profileVisibility === 'private') {
+         // Private profile - minimal info only
+         hasAccess = false;
+         canFollow = requestingUser ? true : false; // Can follow if logged in, but can't see details
+      }
+
+      // Build response based on access level
+      let responseData = {
+         ...baseProfile,
+         privacy: {
+            profileVisibility,
+            hasAccess,
+            canFollow,
+            isOwnProfile
+         }
+      };
+
+      if (hasAccess || isOwnProfile) {
+         // Add detailed information
+         const uploadedNotesCount = await Note.countDocuments({
+            uploader: targetUser._id,
+            'visibility.isPublic': true
+         });
+
+         responseData = {
+            ...responseData,
+            profile: {
+               ...responseData.profile,
+               bio: targetUser.profile.bio,
+               gender: targetUser.profile.gender
+            },
+            contact: {
+               socialLinks: targetUser.contact.socialLinks
+            },
+            activity: {
+               notesUploaded: targetUser.activity.notesUploaded.filter(note => note.visibility?.isPublic),
+               totalUploads: uploadedNotesCount,
+               totalLikesReceived: targetUser.activity.totalLikesReceived,
+               followersCount: targetUser.activity.followers.length,
+               followingCount: targetUser.activity.following.length,
+               followers: targetUser.activity.followers,
+               following: targetUser.activity.following
+            }
+         };
+
+         // Check if requesting user follows target user
+         if (requestingUser && !isOwnProfile) {
+            const isFollowing = requestingUser.activity.following.includes(targetUser._id);
+            responseData.relationship = {
+               isFollowing,
+               isFollowedBy: targetUser.activity.following.includes(requestingUser._id)
+            };
+         }
+      } else {
+         // Limited information for private profiles
+         responseData.activity = {
+            totalUploads: 0, // Don't show upload count for private profiles
+            isPrivate: true
+         };
+      }
+
+      res.status(200).json({
+         success: true,
+         user: responseData
+      });
+
+   } catch (error) {
+      console.error('Get public user profile error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to fetch user profile',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};

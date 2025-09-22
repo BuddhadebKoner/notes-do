@@ -129,6 +129,17 @@ export const profileAPI = {
       } catch (error) {
          throw error.response?.data || error.message
       }
+   },
+
+   // Get public user profile by username
+   getPublicProfile: async (username) => {
+      try {
+         const config = await getAuthConfig()
+         const response = await api.get(`${API_ENDPOINTS.PROFILE.PUBLIC_PROFILE}/${username}`, config)
+         return response.data
+      } catch (error) {
+         throw error.response?.data || error.message
+      }
    }
 }
 
