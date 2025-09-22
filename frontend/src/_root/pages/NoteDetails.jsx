@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { notesAPI } from '../../services/api.js'
+import { useGetNoteById } from '../../lib/react-query/queriesAndMutation.js'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card.jsx'
 import { Avatar, AvatarImage, AvatarFallback } from '../../components/ui/avatar.jsx'
 import { Badge } from '../../components/ui/badge.jsx'
@@ -36,37 +36,56 @@ const NoteDetails = () => {
   const navigate = useNavigate()
   const { user: clerkUser } = useUser()
 
-  const [noteData, setNoteData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  // Use TanStack Query for fetching note details
+  const {
+    data: noteResponse,
+    isLoading: loading,
+    isError,
+    error: queryError,
+    refetch: refetchNoteDetails
+  } = useGetNoteById(id)
+
+  // Extract note data from response
+  const noteData = noteResponse?.note || null
+
+  // Convert query error to string format matching original implementation
+  const error = isError ? (queryError?.message || 'Failed to load note details') : null
+
   const [iframeError, setIframeError] = useState(false)
+  const [iframeLoading, setIframeLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState({
     like: false,
     bookmark: false,
     download: false
   })
 
-  useEffect(() => {
-    fetchNoteDetails()
-  }, [id])
-
-  const fetchNoteDetails = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await notesAPI.getNoteById(id)
-      setNoteData(response.note)
-    } catch (error) {
-      console.error('Error fetching note details:', error)
-      setError(error.message || 'Failed to load note details')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleBack = () => {
     navigate(-1)
   }
+
+  // Handle iframe loading states
+  const handleIframeLoad = () => {
+    setIframeLoading(false)
+    setIframeError(false)
+  }
+
+  const handleIframeError = () => {
+    console.error('Iframe failed to load Google Drive document')
+    setIframeLoading(false)
+    setIframeError(true)
+  }
+
+  const handleIframeLoadStart = () => {
+    setIframeLoading(true)
+    setIframeError(false)
+  }
+
+  // Initialize iframe loading when noteData becomes available
+  useEffect(() => {
+    if (noteData?.file?.viewUrl && !iframeError) {
+      setIframeLoading(true)
+    }
+  }, [noteData?.file?.viewUrl])
 
   const handleDownload = async () => {
     if (!noteData?.permissions?.canDownload || !noteData?.file?.downloadUrl) return
@@ -189,7 +208,7 @@ const NoteDetails = () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Go Back
               </Button>
-              <Button onClick={fetchNoteDetails}>
+              <Button onClick={() => refetchNoteDetails()}>
                 Try Again
               </Button>
             </div>
@@ -300,24 +319,49 @@ const NoteDetails = () => {
               <CardContent>
                 {noteData.file?.viewUrl ? (
                   <div className="relative">
+                    {/* Iframe loading skeleton */}
+                    {iframeLoading && (
+                      <div className="absolute inset-0 w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex items-center justify-center z-10">
+                        <div className="text-center text-gray-500">
+                          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                          <p className="text-sm">Loading document preview...</p>
+                        </div>
+                      </div>
+                    )}
+
                     {!iframeError && (
                       <iframe
                         src={noteData.file.viewUrl}
                         className="w-full aspect-[1/1.414] rounded-lg border"
                         title={noteData.title}
                         loading="lazy"
-                        onError={() => {
-                          console.error('Iframe failed to load Google Drive document');
-                          setIframeError(true);
+                        onLoad={handleIframeLoad}
+                        onError={handleIframeError}
+                        onLoadStart={handleIframeLoadStart}
+                        style={{
+                          opacity: iframeLoading ? 0 : 1,
+                          transition: 'opacity 0.3s ease-in-out'
                         }}
                       />
                     )}
+
                     {iframeError && (
                       <div className="w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex flex-col items-center justify-center">
                         <div className="text-center text-gray-500 mb-4">
                           <FileText className="w-16 h-16 mx-auto mb-3 text-gray-300" />
                           <p className="text-lg font-medium mb-2">Preview unavailable</p>
                           <p className="text-sm">Some files cannot be displayed inline due to security restrictions.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => {
+                              setIframeError(false)
+                              handleIframeLoadStart()
+                            }}
+                          >
+                            Retry Loading
+                          </Button>
                         </div>
                       </div>
                     )}

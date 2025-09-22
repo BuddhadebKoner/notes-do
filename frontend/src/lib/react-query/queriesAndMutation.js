@@ -197,6 +197,24 @@ export const useGetActivityStats = () => {
 
 // ========== NOTES QUERIES ==========
 
+// Query to get single note by ID
+export const useGetNoteById = (noteId) => {
+   return useQuery({
+      queryKey: [...QUERY_KEYS.GET_NOTE, noteId],
+      queryFn: () => notesAPI.getNoteById(noteId),
+      enabled: !!noteId, // Only run query when noteId is available
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      retry: (failureCount, error) => {
+         // Don't retry for 404 or 403 errors
+         if (error.status === 404 || error.status === 403) {
+            return false
+         }
+         return failureCount < 2
+      }
+   })
+}
+
 // Query to get notes feed for cards display
 export const useGetNotesFeed = (page = 1, limit = 12, filters = {}) => {
    // Create a stable filter string for proper memoization

@@ -25,14 +25,16 @@ const Navigation = () => {
             <Link to='/' className='text-xl font-bold text-gray-800'>
               Notes Doo
             </Link>
-            <div className='flex space-x-4'>
-              <Link
-                to='/profile'
-                className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
-              >
-                Profile
-              </Link>
-            </div>
+            <SignedIn>
+              <div className='flex space-x-4'>
+                <Link
+                  to='/profile'
+                  className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium'
+                >
+                  Profile
+                </Link>
+              </div>
+            </SignedIn>
           </div>
 
           <div className='flex items-center space-x-4'>
