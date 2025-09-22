@@ -9,13 +9,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 
 // Import database connection
-import connectDB from './config/database.js';
+import connectDB from './src/config/database.js';
+
 
 // Import routes
-import authRoutes from './routes/auth.js';
-import noteRoutes from './routes/notes.js';
-import googleRoutes from './routes/google.js';
-import profileRoutes from './routes/profile.js';
+import authRoutes from './src/routes/auth.js';
+import noteRoutes from './src/routes/notes.js';
+import googleRoutes from './src/routes/google.js';
+import profileRoutes from './src/routes/profile.js';
 
 // Load environment variables
 dotenv.config();
