@@ -24,8 +24,6 @@ const NoteCard = ({ note, onView, onDownload }) => {
       uploader = {}
    } = note
 
-   console.log('NoteCard note:', note)
-
    const [isLiked, setIsLiked] = useState(false)
 
    // Get PDF preview URL - prioritize stored thumbnailUrl, fallback to constructed URL

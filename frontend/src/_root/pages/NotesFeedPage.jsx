@@ -82,18 +82,7 @@ const NotesFeedPage = () => {
       error,
       refetch,
       isFetching,
-      isPreviousData
    } = useGetNotesFeed(currentPage, itemsPerPage, memoizedFilters)
-
-   // Debug: Log when component renders
-   console.log('🔄 NotesFeedPage Render:', {
-      currentPage,
-      itemsPerPage,
-      filterCount: Object.keys(memoizedFilters).length,
-      isLoading,
-      isFetching,
-      notesCount: feedData?.notes?.length
-   })
 
    // Handle filter changes
    const updateFilter = useCallback((key, value) => {
