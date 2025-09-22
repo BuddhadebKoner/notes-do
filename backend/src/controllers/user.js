@@ -1,4 +1,3 @@
-import { clerkClient } from '@clerk/clerk-sdk-node';
 import { User } from '../models/index.js';
 
 // Check if user is logged in with Clerk

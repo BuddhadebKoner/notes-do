@@ -7,6 +7,7 @@ import hpp from 'hpp';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { clerkMiddleware } from '@clerk/express';
 
 // Import database connection
 import connectDB from './src/config/database.js';
@@ -97,6 +98,9 @@ app.use((req, res, next) => {
 
 // Prevent parameter pollution
 app.use(hpp());
+
+// Clerk middleware - must be added before routes that need authentication
+app.use(clerkMiddleware());
 
 // HTTP request logger
 if (process.env.NODE_ENV === 'development') {

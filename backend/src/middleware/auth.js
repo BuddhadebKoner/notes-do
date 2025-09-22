@@ -1,4 +1,4 @@
-import { clerkClient } from '@clerk/clerk-sdk-node';
+import { clerkClient, getAuth } from '@clerk/express';
 import { User } from '../models/index.js';
 
 // Environment variables validation
@@ -11,22 +11,18 @@ if (!CLERK_SECRET_KEY) {
 // Middleware to verify Clerk authentication and get user data
 export const requireAuth = async (req, res, next) => {
    try {
-      const authHeader = req.headers.authorization;
-      console.log('UserAuth middleware - Authorization header:', authHeader);
+      // Use the new getAuth() function from @clerk/express
+      const auth = getAuth(req);
+      console.log('UserAuth middleware - Auth object:', auth);
 
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      if (!auth.userId) {
          return res.status(401).json({
             success: false,
             message: 'Authentication required. Please provide a valid token.'
          });
       }
 
-      const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-      // Verify token with Clerk
-      const session = await clerkClient.verifyToken(token);
-      const userId = session.sub;
-
+      const userId = auth.userId;
       console.log('UserAuth middleware - Token verified, userId:', userId);
 
       // Get user details from Clerk
@@ -39,6 +35,7 @@ export const requireAuth = async (req, res, next) => {
       req.user = user;
       req.clerkId = userId;
       req.clerkUser = clerkUser; // Full Clerk user data
+      req.auth = auth; // Add the auth object to the request
 
       next();
    } catch (error) {
@@ -63,21 +60,19 @@ export const requireAuth = async (req, res, next) => {
 // Optional middleware - doesn't require authentication but populates user if available
 export const optionalAuth = async (req, res, next) => {
    try {
-      const authHeader = req.headers.authorization;
+      // Use the new getAuth() function from @clerk/express
+      const auth = getAuth(req);
 
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-         const token = authHeader.substring(7);
-
+      if (auth.userId) {
          try {
-            const session = await clerkClient.verifyToken(token);
-            const userId = session.sub;
-
+            const userId = auth.userId;
             const clerkUser = await clerkClient.users.getUser(userId);
             const user = await User.findOne({ clerkId: userId });
 
             req.user = user;
             req.clerkId = userId;
             req.clerkUser = clerkUser;
+            req.auth = auth;
          } catch (error) {
             // Token invalid or expired, but don't block the request
             console.log('Optional auth - Invalid token, continuing without auth');

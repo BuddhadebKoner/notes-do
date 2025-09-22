@@ -502,13 +502,6 @@ export const getNotesFeed = async (req, res) => {
          sortOrder = 'desc'
       } = req.query;
 
-      console.log('Feed request params:', req.query); // Debug log
-      console.log('User info:', req.user ? {
-         id: req.user._id,
-         university: req.user.academic?.university,
-         department: req.user.academic?.department
-      } : 'No user'); // Debug log
-
       // Pagination
       const pageNum = Math.max(1, parseInt(page));
       const limitNum = Math.min(Math.max(1, parseInt(limit)), 24); // Between 1-24 per page
@@ -583,8 +576,6 @@ export const getNotesFeed = async (req, res) => {
             ]
          });
       }
-
-      console.log('Match stage criteria:', JSON.stringify(matchStage, null, 2)); // Debug log
       pipeline.push({ $match: matchStage });
 
       // Lookup uploader information
