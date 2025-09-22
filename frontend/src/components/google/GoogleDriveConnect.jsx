@@ -3,7 +3,7 @@ import { useAuth as useClerkAuth } from '@clerk/clerk-react'
 import { setAuthToken, API_ENDPOINTS } from '../../config/api.js'
 
 const GoogleDriveConnect = ({ onConnected }) => {
-   const { getToken } = useClerkAuth()
+   const { getToken, isLoaded, isSignedIn } = useClerkAuth()
    const [isConnecting, setIsConnecting] = useState(false)
    const [driveToken, setDriveToken] = useState(localStorage.getItem('googleDriveToken'))
    const [error, setError] = useState(null)
@@ -15,6 +15,15 @@ const GoogleDriveConnect = ({ onConnected }) => {
       try {
          console.log('Starting Google Drive connection...')
          console.log('API Base URL:', API_ENDPOINTS.BASE_URL)
+
+         // Check if Clerk is loaded and user is signed in
+         if (!isLoaded) {
+            throw new Error('Authentication is still loading. Please wait a moment and try again.')
+         }
+
+         if (!isSignedIn) {
+            throw new Error('You must be signed in to connect Google Drive. Please sign in first.')
+         }
 
          // Get Clerk token for authentication with retry logic
          let token = null;
@@ -39,7 +48,7 @@ const GoogleDriveConnect = ({ onConnected }) => {
 
          if (!token) {
             console.error('Failed to obtain authentication token after all retries')
-            throw new Error('Authentication failed. Please sign in again.')
+            throw new Error('Authentication failed. Please sign out and sign in again.')
          }
 
          // Get auth URL from backend
@@ -137,13 +146,35 @@ const GoogleDriveConnect = ({ onConnected }) => {
                <p className='text-sm text-blue-700 mb-3'>
                   Connect your Google Drive to upload files to your personal storage (free!)
                </p>
-               <button
-                  onClick={connectGoogleDrive}
-                  disabled={isConnecting}
-                  className='bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium'
-               >
-                  {isConnecting ? 'Connecting...' : '🔗 Connect Google Drive'}
-               </button>
+
+               {!isLoaded ? (
+                  <button
+                     disabled
+                     className='bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed'
+                  >
+                     Loading...
+                  </button>
+               ) : !isSignedIn ? (
+                  <div className='space-y-2'>
+                     <button
+                        disabled
+                        className='bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed w-full'
+                     >
+                        🔗 Connect Google Drive
+                     </button>
+                     <p className='text-xs text-red-600'>
+                        Please sign in first to connect Google Drive
+                     </p>
+                  </div>
+               ) : (
+                  <button
+                     onClick={connectGoogleDrive}
+                     disabled={isConnecting}
+                     className='bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium'
+                  >
+                     {isConnecting ? 'Connecting...' : '🔗 Connect Google Drive'}
+                  </button>
+               )}
                {error && (
                   <div className='mt-3 p-3 bg-red-50 border border-red-200 rounded-md'>
                      <p className='text-sm text-red-600 font-medium mb-1'>
