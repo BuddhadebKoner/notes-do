@@ -24,6 +24,10 @@ export const API_ENDPOINTS = {
     STATS: '/profile/stats',
     PUBLIC_PROFILE: '/profile/user'
   },
+  GOOGLE: {
+    DRIVE_AUTH: '/google/google-drive-auth',
+    DRIVE_CALLBACK: '/google/google-drive-callback'
+  },
 }
 
 // Global token refresh function reference

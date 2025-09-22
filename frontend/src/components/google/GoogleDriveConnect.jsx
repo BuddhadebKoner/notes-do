@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth as useClerkAuth } from '@clerk/clerk-react'
-import { setAuthToken } from '../../config/api.js'
+import { setAuthToken, API_ENDPOINTS } from '../../config/api.js'
 
 const GoogleDriveConnect = ({ onConnected }) => {
    const { getToken } = useClerkAuth()
@@ -19,7 +19,7 @@ const GoogleDriveConnect = ({ onConnected }) => {
          }
 
          // Get auth URL from backend
-         const response = await fetch('http://localhost:3000/api/google/google-drive-auth', {
+         const response = await fetch(`${API_ENDPOINTS.BASE_URL}${API_ENDPOINTS.GOOGLE.DRIVE_AUTH}`, {
             headers: {
                'Authorization': `Bearer ${token}`
             }
