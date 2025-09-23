@@ -69,7 +69,7 @@ app.use(cookieParser());
 
 // Data sanitization against NoSQL query injection
 // Temporarily disabled due to Express 5 compatibility issue
-// app.use(mongoSanitize());
+app.use(mongoSanitize());
 
 // Manual sanitization function as alternative
 const sanitizeObject = (obj) => {
@@ -94,6 +94,24 @@ app.use((req, res, next) => {
 
 // Prevent parameter pollution
 app.use(hpp());
+
+// Database connection middleware - ensure DB is connected before processing requests
+app.use('/api', async (req, res, next) => {
+   try {
+      const dbStatus = getDBStatus();
+      if (!dbStatus.isConnected) {
+         console.log('🔄 Database not connected, establishing connection...');
+         await connectDB();
+      }
+      next();
+   } catch (error) {
+      console.error('❌ Database connection failed in middleware:', error);
+      return res.status(503).json({
+         success: false,
+         error: 'Database connection unavailable'
+      });
+   }
+});
 
 // Clerk middleware - must be added before routes that need authentication
 app.use(clerkMiddleware());
@@ -198,47 +216,39 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-// Start server function
-const startServer = async () => {
+// Initialize database connection for serverless
+const initializeDatabase = async () => {
    try {
-      // Connect to database
-      await connectDB();
-      console.log('🎉 Database initialization completed');
+      const dbStatus = getDBStatus();
+      if (!dbStatus.isConnected) {
+         await connectDB();
+         console.log('🎉 Database initialized successfully');
+      }
+   } catch (error) {
+      console.error('💥 Database initialization failed:', error);
+      // Don't exit in serverless, let middleware handle it
+   }
+};
 
-      // Start listening
-      const server = app.listen(PORT, () => {
-         console.log(`
+// Initialize database connection
+initializeDatabase();
+
+// Start server
+const server = app.listen(PORT, () => {
+   console.log(`
 🚀 Server is running!
 🌍 Environment: ${process.env.NODE_ENV}
 🔗 URL: http://localhost:${PORT}
 📚 API: http://localhost:${PORT}/api
 ❤️  Health: http://localhost:${PORT}/health
-         `);
-      });
-
-      return server;
-   } catch (error) {
-      console.error('💥 Failed to start server:', error.message);
-      if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-         process.exit(1);
-      }
-   }
-};
-
-// Start the server
-let serverInstance;
-startServer().then(server => {
-   serverInstance = server;
-}).catch(error => {
-   console.error('Failed to start server:', error);
-   process.exit(1);
+   `);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
    console.log('Unhandled Rejection at:', promise, 'reason:', err);
-   if (serverInstance) {
-      serverInstance.close(() => {
+   if (server && server.close) {
+      server.close(() => {
          process.exit(1);
       });
    } else {
@@ -246,7 +256,7 @@ process.on('unhandledRejection', (err, promise) => {
    }
 });
 
-// Handle uncaught exceptions
+// Handle uncaught exceptions  
 process.on('uncaughtException', (err) => {
    console.log('Uncaught Exception thrown:', err);
    process.exit(1);

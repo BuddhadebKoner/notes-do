@@ -59,7 +59,7 @@ class DatabaseConnection {
 
          const connectOptions = {
             maxPoolSize: 10,
-            bufferCommands: false,
+            bufferCommands: true, // Enable buffering for serverless
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
             family: 4, // Use IPv4
