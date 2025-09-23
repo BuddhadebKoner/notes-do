@@ -75,7 +75,10 @@ function App() {
               <Route path='/note/:id' element={<NoteDetails />} />
               <Route path='/user/:username' element={<PublicProfile />} />
               <Route path='/upload' element={<UploadNote />} />
-              <Route path='/auth/google/callback' element={<GoogleCallback />} />
+              <Route
+                path='/auth/google/callback'
+                element={<GoogleCallback />}
+              />
             </Routes>
           </main>
         </div>

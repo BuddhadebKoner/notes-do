@@ -11,7 +11,7 @@ export const API_ENDPOINTS = {
     UPLOAD: '/notes/upload',
     GET_FEED: '/notes/feed',
     GET_NOTE: '/notes',
-    DOWNLOAD: '/notes'
+    DOWNLOAD: '/notes',
   },
   PROFILE: {
     GET_PROFILE: '/profile',
@@ -22,11 +22,12 @@ export const API_ENDPOINTS = {
     FOLLOWERS: '/profile/followers',
     FOLLOWING: '/profile/following',
     STATS: '/profile/stats',
-    PUBLIC_PROFILE: '/profile/user'
+    PUBLIC_PROFILE: '/profile/user',
+    PUBLIC_USER_NOTES: '/profile/user',
   },
   GOOGLE: {
     DRIVE_AUTH: '/google/google-drive-auth',
-    CALLBACK: '/google/callback'
+    CALLBACK: '/google/callback',
   },
 }
 
@@ -44,12 +45,12 @@ const api = axios.create({
 })
 
 // Function to set the token refresh function
-export const setTokenRefreshFunction = (getToken) => {
+export const setTokenRefreshFunction = getToken => {
   getTokenFunction = getToken
 }
 
 // Function to set auth token (will be called from components)
-export const setAuthToken = (token) => {
+export const setAuthToken = token => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     api.defaults.headers.common['x-clerk-auth-token'] = token
@@ -61,7 +62,7 @@ export const setAuthToken = (token) => {
 
 // Request interceptor - Get fresh token before each request
 api.interceptors.request.use(
-  async (config) => {
+  async config => {
     // Get fresh token before each request to avoid expiry issues
     if (getTokenFunction) {
       try {
@@ -76,15 +77,15 @@ api.interceptors.request.use(
     }
     return config
   },
-  (error) => {
+  error => {
     return Promise.reject(error)
   }
 )
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
+  response => response,
+  async error => {
     const originalRequest = error.config
 
     if (error.response?.status === 401 && !originalRequest._retry) {

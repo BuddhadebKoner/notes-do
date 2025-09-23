@@ -429,6 +429,16 @@ export const uploadNote = async (req, res) => {
       const note = new Note(noteData);
       const savedNote = await note.save();
 
+      // Update user's activity - add note to notesUploaded array and increment totalUploads
+      await User.findByIdAndUpdate(
+         req.user._id,
+         {
+            $push: { 'activity.notesUploaded': savedNote._id },
+            $inc: { 'activity.totalUploads': 1 }
+         },
+         { new: true }
+      );
+
       // Clean up local file if Google Drive upload was successful
       if (storageLocation === 'google-drive' && localFilePath) {
          try {

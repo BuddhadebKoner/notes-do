@@ -39,7 +39,7 @@ export const getUserProfile = async (req, res) => {
       const uploadedNotesCount = await Note.countDocuments({ uploader: user._id });
       const totalDownloads = await Note.aggregate([
          { $match: { uploader: user._id } },
-         { $group: { _id: null, total: { $sum: '$engagement.downloads' } } }
+         { $group: { _id: null, total: { $sum: '$social.downloads' } } }
       ]);
 
       const response = {
@@ -555,19 +555,7 @@ export const getPublicUserProfile = async (req, res) => {
       const targetUser = await User.findOne({
          username: username.toLowerCase(),
          'account.isActive': true
-      })
-         .populate({
-            path: 'activity.notesUploaded',
-            select: 'title subject.name file.downloadUrl uploadDate visibility.isPublic'
-         })
-         .populate({
-            path: 'activity.following',
-            select: 'profile.firstName profile.lastName profile.avatar username'
-         })
-         .populate({
-            path: 'activity.followers',
-            select: 'profile.firstName profile.lastName profile.avatar username'
-         });
+      });
 
       if (!targetUser) {
          return res.status(404).json({
@@ -649,10 +637,22 @@ export const getPublicUserProfile = async (req, res) => {
 
       if (hasAccess || isOwnProfile) {
          // Add detailed information
-         const uploadedNotesCount = await Note.countDocuments({
-            uploader: targetUser._id,
-            'visibility.isPublic': true
+         // Count total uploads (all notes by user)
+         const totalUploadsCount = await Note.countDocuments({
+            uploader: targetUser._id
          });
+
+         // Count public uploads only for display
+         const publicUploadsCount = await Note.countDocuments({
+            uploader: targetUser._id,
+            visibility: { $in: ['public', 'university'] }
+         });
+
+         // Calculate total downloads from user's notes
+         const totalDownloads = await Note.aggregate([
+            { $match: { uploader: targetUser._id } },
+            { $group: { _id: null, total: { $sum: '$social.downloads' } } }
+         ]);
 
          responseData = {
             ...responseData,
@@ -665,13 +665,11 @@ export const getPublicUserProfile = async (req, res) => {
                socialLinks: targetUser.contact.socialLinks
             },
             activity: {
-               notesUploaded: targetUser.activity.notesUploaded.filter(note => note.visibility?.isPublic),
-               totalUploads: uploadedNotesCount,
-               totalLikesReceived: targetUser.activity.totalLikesReceived,
-               followersCount: targetUser.activity.followers.length,
-               followingCount: targetUser.activity.following.length,
-               followers: targetUser.activity.followers,
-               following: targetUser.activity.following
+               totalUploads: publicUploadsCount, // Show only public/university visible notes count
+               totalDownloads: totalDownloads[0]?.total || 0,
+               totalLikesReceived: targetUser.activity.totalLikesReceived || 0,
+               followersCount: targetUser.activity.followers?.length || 0,
+               followingCount: targetUser.activity.following?.length || 0
             }
          };
 
@@ -701,6 +699,186 @@ export const getPublicUserProfile = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to fetch user profile',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Get public user's notes with pagination
+export const getPublicUserNotes = async (req, res) => {
+   try {
+      const { username } = req.params;
+      const { page = 1, limit = 12, sortBy = 'uploadDate', sortOrder = 'desc' } = req.query;
+
+      if (!username) {
+         return res.status(400).json({
+            success: false,
+            message: 'Username is required'
+         });
+      }
+
+      // Find the target user
+      const targetUser = await User.findOne({
+         username: username.toLowerCase(),
+         'account.isActive': true
+      });
+
+      if (!targetUser) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found'
+         });
+      }
+
+      // Get the requesting user's info (if authenticated)
+      let requestingUser = null;
+      let isOwnProfile = false;
+
+      if (req.clerkId) {
+         requestingUser = await User.findOne({ clerkId: req.clerkId });
+         isOwnProfile = requestingUser && requestingUser._id.equals(targetUser._id);
+      }
+
+      // Determine what data to show based on privacy settings
+      const profileVisibility = targetUser.preferences?.privacy?.profileVisibility || 'university';
+
+      // Determine access level (same logic as getPublicUserProfile)
+      let hasAccess = false;
+
+      if (isOwnProfile) {
+         // Own profile - full access
+         hasAccess = true;
+      } else if (profileVisibility === 'public') {
+         // Public profile - everyone can see
+         hasAccess = true;
+      } else if (profileVisibility === 'university' && requestingUser) {
+         // University-only - check if same university
+         const sameUniversity = requestingUser.academic?.university &&
+            targetUser.academic?.university &&
+            requestingUser.academic.university.toLowerCase() ===
+            targetUser.academic.university.toLowerCase();
+         hasAccess = sameUniversity;
+      } else if (profileVisibility === 'private') {
+         // Private profile - no access to notes
+         hasAccess = false;
+      }
+
+      // If no access, return empty result with message
+      if (!hasAccess && !isOwnProfile) {
+         return res.status(403).json({
+            success: false,
+            message: 'Access denied. This user\'s notes are not public.',
+            data: {
+               notes: [],
+               pagination: {
+                  currentPage: parseInt(page),
+                  totalPages: 0,
+                  totalNotes: 0,
+                  hasNextPage: false,
+                  hasPrevPage: false
+               },
+               privacy: {
+                  profileVisibility,
+                  hasAccess: false
+               }
+            }
+         });
+      }
+
+      // Calculate pagination
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+
+      // Build query for notes based on access level
+      let notesQuery = { uploader: targetUser._id };
+
+      if (!isOwnProfile) {
+         // For non-own profiles, only show public or university-visible notes
+         if (profileVisibility === 'public') {
+            notesQuery.visibility = { $in: ['public', 'university'] };
+         } else if (profileVisibility === 'university') {
+            notesQuery.visibility = { $in: ['public', 'university'] };
+         }
+      }
+
+      // Fetch notes with pagination
+      const notes = await Note.find(notesQuery)
+         .select('title description tags academic subject file.downloadUrl file.thumbnailUrl file.driveFileId social uploadDate visibility')
+         .populate({
+            path: 'uploader',
+            select: 'profile.firstName profile.lastName profile.avatar username'
+         })
+         .sort(sortOptions)
+         .skip(skip)
+         .limit(parseInt(limit))
+         .lean();
+
+      // Count total notes for pagination
+      const totalNotes = await Note.countDocuments(notesQuery);
+
+      // Format notes for frontend (similar to NoteCard structure)
+      const formattedNotes = notes.map(note => ({
+         _id: note._id,
+         title: note.title,
+         subject: note.subject?.name || 'Unknown Subject',
+         description: note.description,
+         tags: note.tags || [],
+         viewUrl: `/note/${note._id}`, // Direct link to note details
+         downloadUrl: note.file?.downloadUrl,
+         driveFileId: note.file?.driveFileId,
+         thumbnailUrl: note.file?.thumbnailUrl,
+         stats: {
+            views: note.social?.views || 0,
+            likes: note.social?.likes?.length || 0,
+            downloads: note.social?.downloads || 0
+         },
+         uploader: {
+            name: note.uploader ? `${note.uploader.profile.firstName} ${note.uploader.profile.lastName}` : 'Anonymous',
+            username: note.uploader?.username || 'unknown',
+            avatar: note.uploader?.profile?.avatar
+         },
+         uploadDate: note.uploadDate,
+         academic: {
+            university: note.academic?.university,
+            department: note.academic?.department,
+            semester: note.academic?.semester
+         }
+      }));
+
+      // Build pagination info
+      const pagination = {
+         currentPage: parseInt(page),
+         totalPages: Math.ceil(totalNotes / parseInt(limit)),
+         totalNotes,
+         hasNextPage: skip + parseInt(limit) < totalNotes,
+         hasPrevPage: parseInt(page) > 1,
+         limit: parseInt(limit)
+      };
+
+      res.status(200).json({
+         success: true,
+         message: `Found ${totalNotes} notes for user ${username}`,
+         data: {
+            notes: formattedNotes,
+            pagination,
+            privacy: {
+               profileVisibility,
+               hasAccess: true,
+               isOwnProfile
+            },
+            user: {
+               username: targetUser.username,
+               name: `${targetUser.profile.firstName} ${targetUser.profile.lastName}`,
+               avatar: targetUser.profile.avatar
+            }
+         }
+      });
+
+   } catch (error) {
+      console.error('Get public user notes error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to fetch user notes',
          error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
    }

@@ -2,8 +2,17 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { useGetNoteById } from '../../lib/react-query/queriesAndMutation.js'
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card.jsx'
-import { Avatar, AvatarImage, AvatarFallback } from '../../components/ui/avatar.jsx'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/card.jsx'
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from '../../components/ui/avatar.jsx'
 import { Badge } from '../../components/ui/badge.jsx'
 import { Button } from '../../components/ui/button.jsx'
 import { Skeleton } from '../../components/ui/skeleton.jsx'
@@ -28,7 +37,7 @@ import {
   GraduationCap,
   Building,
   UserCheck,
-  Users
+  Users,
 } from 'lucide-react'
 
 const NoteDetails = () => {
@@ -42,21 +51,23 @@ const NoteDetails = () => {
     isLoading: loading,
     isError,
     error: queryError,
-    refetch: refetchNoteDetails
+    refetch: refetchNoteDetails,
   } = useGetNoteById(id)
 
   // Extract note data from response
   const noteData = noteResponse?.note || null
 
   // Convert query error to string format matching original implementation
-  const error = isError ? (queryError?.message || 'Failed to load note details') : null
+  const error = isError
+    ? queryError?.message || 'Failed to load note details'
+    : null
 
   const [iframeError, setIframeError] = useState(false)
   const [iframeLoading, setIframeLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState({
     like: false,
     bookmark: false,
-    download: false
+    download: false,
   })
 
   const handleBack = () => {
@@ -88,7 +99,8 @@ const NoteDetails = () => {
   }, [noteData?.file?.viewUrl])
 
   const handleDownload = async () => {
-    if (!noteData?.permissions?.canDownload || !noteData?.file?.downloadUrl) return
+    if (!noteData?.permissions?.canDownload || !noteData?.file?.downloadUrl)
+      return
 
     setActionLoading(prev => ({ ...prev, download: true }))
     try {
@@ -107,7 +119,7 @@ const NoteDetails = () => {
         await navigator.share({
           title: noteData.title,
           text: noteData.description,
-          url: window.location.href
+          url: window.location.href,
         })
       } catch (error) {
         // User canceled sharing
@@ -126,22 +138,22 @@ const NoteDetails = () => {
     }
   }
 
-  const formatFileSize = (bytes) => {
+  const formatFileSize = bytes => {
     if (!bytes) return 'Unknown size'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i]
   }
 
-  const formatDate = (dateString) => {
+  const formatDate = dateString => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     })
   }
 
-  const getInitials = (name) => {
+  const getInitials = name => {
     return name
       .split(' ')
       .map(word => word.charAt(0))
@@ -152,39 +164,39 @@ const NoteDetails = () => {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-6xl mx-auto space-y-6">
+      <div className='min-h-screen bg-gray-50 p-4'>
+        <div className='max-w-6xl mx-auto space-y-6'>
           {/* Header skeleton */}
-          <div className="flex items-center gap-4">
-            <Skeleton className="w-10 h-10 rounded-lg" />
-            <Skeleton className="h-8 w-64" />
+          <div className='flex items-center gap-4'>
+            <Skeleton className='w-10 h-10 rounded-lg' />
+            <Skeleton className='h-8 w-64' />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
             {/* Main content skeleton */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className='lg:col-span-2 space-y-6'>
               <Card>
                 <CardHeader>
-                  <Skeleton className="h-8 w-3/4" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className='h-8 w-3/4' />
+                  <Skeleton className='h-4 w-full' />
+                  <Skeleton className='h-4 w-2/3' />
                 </CardHeader>
                 <CardContent>
-                  <Skeleton className="h-96 w-full rounded-lg" />
+                  <Skeleton className='h-96 w-full rounded-lg' />
                 </CardContent>
               </Card>
             </div>
 
             {/* Sidebar skeleton */}
-            <div className="space-y-6">
+            <div className='space-y-6'>
               <Card>
                 <CardHeader>
-                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className='h-6 w-32' />
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
+                <CardContent className='space-y-4'>
+                  <Skeleton className='h-4 w-full' />
+                  <Skeleton className='h-4 w-3/4' />
+                  <Skeleton className='h-4 w-1/2' />
                 </CardContent>
               </Card>
             </div>
@@ -197,20 +209,18 @@ const NoteDetails = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Error Loading Note</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <div className="flex gap-2 justify-center">
-              <Button variant="outline" onClick={handleBack}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
+        <Card className='max-w-md w-full'>
+          <CardContent className='pt-6 text-center'>
+            <AlertCircle className='w-12 h-12 text-red-500 mx-auto mb-4' />
+            <h3 className='text-lg font-semibold mb-2'>Error Loading Note</h3>
+            <p className='text-gray-600 mb-4'>{error}</p>
+            <div className='flex gap-2 justify-center'>
+              <Button variant='outline' onClick={handleBack}>
+                <ArrowLeft className='w-4 h-4 mr-2' />
                 Go Back
               </Button>
-              <Button onClick={() => refetchNoteDetails()}>
-                Try Again
-              </Button>
+              <Button onClick={() => refetchNoteDetails()}>Try Again</Button>
             </div>
           </CardContent>
         </Card>
@@ -221,42 +231,40 @@ const NoteDetails = () => {
   // No access state
   if (!noteData?.permissions?.hasAccess) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-4xl mx-auto">
+      <div className='min-h-screen bg-gray-50 p-4'>
+        <div className='max-w-4xl mx-auto'>
           {/* Header */}
-          <div className="flex items-center gap-4 mb-6">
-            <Button variant="outline" onClick={handleBack}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
+          <div className='flex items-center gap-4 mb-6'>
+            <Button variant='outline' onClick={handleBack}>
+              <ArrowLeft className='w-4 h-4 mr-2' />
               Back
             </Button>
-            <h1 className="text-2xl font-bold">Note Details</h1>
+            <h1 className='text-2xl font-bold'>Note Details</h1>
           </div>
 
           {/* Restricted access card */}
-          <Card className="max-w-2xl mx-auto">
-            <CardContent className="pt-6 text-center">
-              <Lock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">{noteData.title}</h3>
+          <Card className='max-w-2xl mx-auto'>
+            <CardContent className='pt-6 text-center'>
+              <Lock className='w-16 h-16 text-gray-400 mx-auto mb-4' />
+              <h3 className='text-xl font-semibold mb-2'>{noteData.title}</h3>
 
               {/* Basic info for restricted access */}
-              <div className="flex items-center justify-center gap-4 mb-4 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <User className="w-4 h-4" />
+              <div className='flex items-center justify-center gap-4 mb-4 text-sm text-gray-600'>
+                <div className='flex items-center gap-1'>
+                  <User className='w-4 h-4' />
                   {noteData.uploader?.name || 'Anonymous'}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
+                <div className='flex items-center gap-1'>
+                  <Calendar className='w-4 h-4' />
                   {formatDate(noteData.uploadDate)}
                 </div>
               </div>
 
-              <Badge variant="outline" className="mb-4">
+              <Badge variant='outline' className='mb-4'>
                 {noteData.visibility} access required
               </Badge>
 
-              <p className="text-gray-600 mb-4">
-                {noteData.message}
-              </p>
+              <p className='text-gray-600 mb-4'>{noteData.message}</p>
 
               {!clerkUser && (
                 <Button onClick={() => navigate('/sign-in')}>
@@ -272,59 +280,59 @@ const NoteDetails = () => {
 
   // Main content with access
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className='min-h-screen bg-gray-50 p-4'>
+      <div className='max-w-7xl mx-auto space-y-6'>
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={handleBack}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-4'>
+            <Button variant='outline' onClick={handleBack}>
+              <ArrowLeft className='w-4 h-4 mr-2' />
               Back
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">{noteData.title}</h1>
-              <p className="text-gray-600">Note Details</p>
+              <h1 className='text-2xl font-bold'>{noteData.title}</h1>
+              <p className='text-gray-600'>Note Details</p>
             </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2">
+          <div className='flex items-center gap-2'>
             {noteData.permissions.canDownload && (
               <Button
                 onClick={handleDownload}
                 disabled={actionLoading.download}
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className='w-4 h-4 mr-2' />
                 Download
               </Button>
             )}
-            <Button variant="outline" onClick={handleShare}>
-              <Share className="w-4 h-4 mr-2" />
+            <Button variant='outline' onClick={handleShare}>
+              <Share className='w-4 h-4 mr-2' />
               Share
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className='grid grid-cols-1 lg:grid-cols-4 gap-6'>
           {/* Main content */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className='lg:col-span-3 space-y-6'>
             {/* PDF Viewer */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
+                <CardTitle className='flex items-center gap-2'>
+                  <FileText className='w-5 h-5' />
                   Document Viewer
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {noteData.file?.viewUrl ? (
-                  <div className="relative">
+                  <div className='relative'>
                     {/* Iframe loading skeleton */}
                     {iframeLoading && (
-                      <div className="absolute inset-0 w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex items-center justify-center z-10">
-                        <div className="text-center text-gray-500">
-                          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                          <p className="text-sm">Loading document preview...</p>
+                      <div className='absolute inset-0 w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex items-center justify-center z-10'>
+                        <div className='text-center text-gray-500'>
+                          <div className='animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2'></div>
+                          <p className='text-sm'>Loading document preview...</p>
                         </div>
                       </div>
                     )}
@@ -332,29 +340,34 @@ const NoteDetails = () => {
                     {!iframeError && (
                       <iframe
                         src={noteData.file.viewUrl}
-                        className="w-full aspect-[1/1.414] rounded-lg border"
+                        className='w-full aspect-[1/1.414] rounded-lg border'
                         title={noteData.title}
-                        loading="lazy"
+                        loading='lazy'
                         onLoad={handleIframeLoad}
                         onError={handleIframeError}
                         onLoadStart={handleIframeLoadStart}
                         style={{
                           opacity: iframeLoading ? 0 : 1,
-                          transition: 'opacity 0.3s ease-in-out'
+                          transition: 'opacity 0.3s ease-in-out',
                         }}
                       />
                     )}
 
                     {iframeError && (
-                      <div className="w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex flex-col items-center justify-center">
-                        <div className="text-center text-gray-500 mb-4">
-                          <FileText className="w-16 h-16 mx-auto mb-3 text-gray-300" />
-                          <p className="text-lg font-medium mb-2">Preview unavailable</p>
-                          <p className="text-sm">Some files cannot be displayed inline due to security restrictions.</p>
+                      <div className='w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex flex-col items-center justify-center'>
+                        <div className='text-center text-gray-500 mb-4'>
+                          <FileText className='w-16 h-16 mx-auto mb-3 text-gray-300' />
+                          <p className='text-lg font-medium mb-2'>
+                            Preview unavailable
+                          </p>
+                          <p className='text-sm'>
+                            Some files cannot be displayed inline due to
+                            security restrictions.
+                          </p>
                           <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-3"
+                            variant='outline'
+                            size='sm'
+                            className='mt-3'
                             onClick={() => {
                               setIframeError(false)
                               handleIframeLoadStart()
@@ -366,19 +379,24 @@ const NoteDetails = () => {
                       </div>
                     )}
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm"
-                      onClick={() => window.open(noteData.file.directViewUrl || noteData.file.viewUrl, '_blank')}
+                      variant='outline'
+                      size='sm'
+                      className='absolute top-2 right-2 bg-white/90 backdrop-blur-sm'
+                      onClick={() =>
+                        window.open(
+                          noteData.file.directViewUrl || noteData.file.viewUrl,
+                          '_blank'
+                        )
+                      }
                     >
-                      <ExternalLink className="w-4 h-4 mr-1" />
+                      <ExternalLink className='w-4 h-4 mr-1' />
                       Open in New Tab
                     </Button>
                   </div>
                 ) : (
-                  <div className="w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex items-center justify-center">
-                    <div className="text-center text-gray-500">
-                      <FileText className="w-12 h-12 mx-auto mb-2" />
+                  <div className='w-full aspect-[1/1.414] bg-gray-100 rounded-lg flex items-center justify-center'>
+                    <div className='text-center text-gray-500'>
+                      <FileText className='w-12 h-12 mx-auto mb-2' />
                       <p>Document preview unavailable</p>
                     </div>
                   </div>
@@ -391,19 +409,19 @@ const NoteDetails = () => {
               <CardHeader>
                 <CardTitle>Description</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-gray-700">{noteData.description}</p>
+              <CardContent className='space-y-4'>
+                <p className='text-gray-700'>{noteData.description}</p>
 
                 {/* Tags */}
                 {noteData.tags && noteData.tags.length > 0 && (
                   <div>
-                    <h4 className="font-medium mb-2 flex items-center gap-2">
-                      <Tag className="w-4 h-4" />
+                    <h4 className='font-medium mb-2 flex items-center gap-2'>
+                      <Tag className='w-4 h-4' />
                       Tags
                     </h4>
-                    <div className="flex flex-wrap gap-2">
+                    <div className='flex flex-wrap gap-2'>
                       {noteData.tags.map((tag, index) => (
-                        <Badge key={index} variant="secondary">
+                        <Badge key={index} variant='secondary'>
                           {tag}
                         </Badge>
                       ))}
@@ -412,18 +430,19 @@ const NoteDetails = () => {
                 )}
 
                 {/* Keywords */}
-                {noteData.content?.keywords && noteData.content.keywords.length > 0 && (
-                  <div>
-                    <h4 className="font-medium mb-2">Keywords</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {noteData.content.keywords.map((keyword, index) => (
-                        <Badge key={index} variant="outline">
-                          {keyword}
-                        </Badge>
-                      ))}
+                {noteData.content?.keywords &&
+                  noteData.content.keywords.length > 0 && (
+                    <div>
+                      <h4 className='font-medium mb-2'>Keywords</h4>
+                      <div className='flex flex-wrap gap-2'>
+                        {noteData.content.keywords.map((keyword, index) => (
+                          <Badge key={index} variant='outline'>
+                            {keyword}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </CardContent>
             </Card>
 
@@ -431,66 +450,83 @@ const NoteDetails = () => {
             {noteData.permissions.canComment && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageCircle className="w-5 h-5" />
+                  <CardTitle className='flex items-center gap-2'>
+                    <MessageCircle className='w-5 h-5' />
                     Comments ({noteData.comments?.length || 0})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {noteData.comments && noteData.comments.length > 0 ? (
-                    <div className="space-y-4">
-                      {noteData.comments.map((comment) => (
-                        <div key={comment._id} className="border-l-2 border-gray-200 pl-4">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="w-8 h-8">
+                    <div className='space-y-4'>
+                      {noteData.comments.map(comment => (
+                        <div
+                          key={comment._id}
+                          className='border-l-2 border-gray-200 pl-4'
+                        >
+                          <div className='flex items-start gap-3'>
+                            <Avatar className='w-8 h-8'>
                               <AvatarImage src={comment.user.avatar} />
                               <AvatarFallback>
                                 {getInitials(comment.user.name)}
                               </AvatarFallback>
                             </Avatar>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm">{comment.user.name}</span>
-                                <span className="text-xs text-gray-500">
+                            <div className='flex-1'>
+                              <div className='flex items-center gap-2 mb-1'>
+                                <span className='font-medium text-sm'>
+                                  {comment.user.name}
+                                </span>
+                                <span className='text-xs text-gray-500'>
                                   {formatDate(comment.createdAt)}
                                 </span>
                               </div>
-                              <p className="text-gray-700 text-sm">{comment.content}</p>
+                              <p className='text-gray-700 text-sm'>
+                                {comment.content}
+                              </p>
 
                               {/* Comment replies */}
-                              {comment.replies && comment.replies.length > 0 && (
-                                <div className="mt-3 ml-4 space-y-2">
-                                  {comment.replies.map((reply) => (
-                                    <div key={reply._id} className="flex items-start gap-2">
-                                      <Avatar className="w-6 h-6">
-                                        <AvatarImage src={reply.user.avatar} />
-                                        <AvatarFallback className="text-xs">
-                                          {getInitials(reply.user.name)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div>
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-medium text-xs">{reply.user.name}</span>
-                                          <span className="text-xs text-gray-400">
-                                            {formatDate(reply.createdAt)}
-                                          </span>
+                              {comment.replies &&
+                                comment.replies.length > 0 && (
+                                  <div className='mt-3 ml-4 space-y-2'>
+                                    {comment.replies.map(reply => (
+                                      <div
+                                        key={reply._id}
+                                        className='flex items-start gap-2'
+                                      >
+                                        <Avatar className='w-6 h-6'>
+                                          <AvatarImage
+                                            src={reply.user.avatar}
+                                          />
+                                          <AvatarFallback className='text-xs'>
+                                            {getInitials(reply.user.name)}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <div className='flex items-center gap-2'>
+                                            <span className='font-medium text-xs'>
+                                              {reply.user.name}
+                                            </span>
+                                            <span className='text-xs text-gray-400'>
+                                              {formatDate(reply.createdAt)}
+                                            </span>
+                                          </div>
+                                          <p className='text-gray-600 text-xs'>
+                                            {reply.content}
+                                          </p>
                                         </div>
-                                        <p className="text-gray-600 text-xs">{reply.content}</p>
                                       </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                                    ))}
+                                  </div>
+                                )}
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <div className='text-center py-8 text-gray-500'>
+                      <MessageCircle className='w-12 h-12 mx-auto mb-2 text-gray-300' />
                       <p>No comments yet</p>
-                      <p className="text-sm">Be the first to comment!</p>
+                      <p className='text-sm'>Be the first to comment!</p>
                     </div>
                   )}
                 </CardContent>
@@ -499,41 +535,47 @@ const NoteDetails = () => {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className='space-y-6'>
             {/* Uploader Info */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5" />
+                <CardTitle className='flex items-center gap-2'>
+                  <User className='w-5 h-5' />
                   Uploaded by
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-3 mb-4">
-                  <Avatar className="w-12 h-12">
+                <div className='flex items-center gap-3 mb-4'>
+                  <Avatar className='w-12 h-12'>
                     <AvatarImage src={noteData.uploader?.avatar} />
                     <AvatarFallback>
                       {getInitials(noteData.uploader?.name || 'Anonymous')}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{noteData.uploader?.name}</span>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-semibold'>
+                        {noteData.uploader?.name}
+                      </span>
                       {noteData.uploader?.isVerified && (
-                        <UserCheck className="w-4 h-4 text-blue-500" />
+                        <UserCheck className='w-4 h-4 text-blue-500' />
                       )}
                     </div>
-                    <p className="text-sm text-gray-600">@{noteData.uploader?.username}</p>
-                    <Badge variant="outline" size="sm">
+                    <p className='text-sm text-gray-600'>
+                      @{noteData.uploader?.username}
+                    </p>
+                    <Badge variant='outline' size='sm'>
                       {noteData.uploader?.role}
                     </Badge>
                   </div>
                 </div>
 
                 <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => navigate(`/user/${noteData.uploader?.username}`)}
+                  variant='outline'
+                  className='w-full'
+                  onClick={() =>
+                    navigate(`/user/${noteData.uploader?.username}`)
+                  }
                 >
                   View Profile
                 </Button>
@@ -543,26 +585,26 @@ const NoteDetails = () => {
             {/* Academic Info */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5" />
+                <CardTitle className='flex items-center gap-2'>
+                  <GraduationCap className='w-5 h-5' />
                   Academic Info
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <School className="w-4 h-4 text-gray-500" />
+              <CardContent className='space-y-3'>
+                <div className='flex items-center gap-2 text-sm'>
+                  <School className='w-4 h-4 text-gray-500' />
                   <span>{noteData.academic?.university}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Building className="w-4 h-4 text-gray-500" />
+                <div className='flex items-center gap-2 text-sm'>
+                  <Building className='w-4 h-4 text-gray-500' />
                   <span>{noteData.academic?.department}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <BookOpen className="w-4 h-4 text-gray-500" />
+                <div className='flex items-center gap-2 text-sm'>
+                  <BookOpen className='w-4 h-4 text-gray-500' />
                   <span>Semester {noteData.academic?.semester}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4 text-gray-500" />
+                <div className='flex items-center gap-2 text-sm'>
+                  <Calendar className='w-4 h-4 text-gray-500' />
                   <span>{noteData.academic?.academicYear}</span>
                 </div>
               </CardContent>
@@ -571,33 +613,39 @@ const NoteDetails = () => {
             {/* File Info */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
+                <CardTitle className='flex items-center gap-2'>
+                  <FileText className='w-5 h-5' />
                   File Details
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-sm">
-                  <span className="text-gray-500">Filename:</span>
-                  <p className="font-medium break-all">{noteData.file?.driveFileName}</p>
+              <CardContent className='space-y-3'>
+                <div className='text-sm'>
+                  <span className='text-gray-500'>Filename:</span>
+                  <p className='font-medium break-all'>
+                    {noteData.file?.driveFileName}
+                  </p>
                 </div>
-                <div className="text-sm">
-                  <span className="text-gray-500">Size:</span>
-                  <p className="font-medium">{formatFileSize(noteData.file?.size)}</p>
+                <div className='text-sm'>
+                  <span className='text-gray-500'>Size:</span>
+                  <p className='font-medium'>
+                    {formatFileSize(noteData.file?.size)}
+                  </p>
                 </div>
-                <div className="text-sm">
-                  <span className="text-gray-500">Type:</span>
-                  <p className="font-medium">{noteData.file?.mimeType}</p>
+                <div className='text-sm'>
+                  <span className='text-gray-500'>Type:</span>
+                  <p className='font-medium'>{noteData.file?.mimeType}</p>
                 </div>
                 {noteData.file?.pageCount && (
-                  <div className="text-sm">
-                    <span className="text-gray-500">Pages:</span>
-                    <p className="font-medium">{noteData.file.pageCount}</p>
+                  <div className='text-sm'>
+                    <span className='text-gray-500'>Pages:</span>
+                    <p className='font-medium'>{noteData.file.pageCount}</p>
                   </div>
                 )}
-                <div className="text-sm">
-                  <span className="text-gray-500">Uploaded:</span>
-                  <p className="font-medium">{formatDate(noteData.uploadDate)}</p>
+                <div className='text-sm'>
+                  <span className='text-gray-500'>Uploaded:</span>
+                  <p className='font-medium'>
+                    {formatDate(noteData.uploadDate)}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -605,61 +653,69 @@ const NoteDetails = () => {
             {/* Social Stats */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
+                <CardTitle className='flex items-center gap-2'>
+                  <Users className='w-5 h-5' />
                   Statistics
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-center">
+                <div className='grid grid-cols-2 gap-4 text-center'>
                   <div>
-                    <div className="flex items-center justify-center gap-1 text-2xl font-bold">
-                      <Eye className="w-5 h-5 text-gray-500" />
+                    <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
+                      <Eye className='w-5 h-5 text-gray-500' />
                       {noteData.social?.views || 0}
                     </div>
-                    <p className="text-xs text-gray-500">Views</p>
+                    <p className='text-xs text-gray-500'>Views</p>
                   </div>
                   <div>
-                    <div className="flex items-center justify-center gap-1 text-2xl font-bold">
-                      <Heart className="w-5 h-5 text-red-500" />
+                    <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
+                      <Heart className='w-5 h-5 text-red-500' />
                       {noteData.social?.likes || 0}
                     </div>
-                    <p className="text-xs text-gray-500">Likes</p>
+                    <p className='text-xs text-gray-500'>Likes</p>
                   </div>
                   <div>
-                    <div className="flex items-center justify-center gap-1 text-2xl font-bold">
-                      <Download className="w-5 h-5 text-green-500" />
+                    <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
+                      <Download className='w-5 h-5 text-green-500' />
                       {noteData.social?.downloads || 0}
                     </div>
-                    <p className="text-xs text-gray-500">Downloads</p>
+                    <p className='text-xs text-gray-500'>Downloads</p>
                   </div>
                   <div>
-                    <div className="flex items-center justify-center gap-1 text-2xl font-bold">
-                      <Bookmark className="w-5 h-5 text-blue-500" />
+                    <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
+                      <Bookmark className='w-5 h-5 text-blue-500' />
                       {noteData.social?.bookmarks || 0}
                     </div>
-                    <p className="text-xs text-gray-500">Bookmarks</p>
+                    <p className='text-xs text-gray-500'>Bookmarks</p>
                   </div>
                 </div>
 
                 {/* Interaction buttons */}
                 {noteData.permissions.canLike && clerkUser && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className='mt-4 pt-4 border-t'>
+                    <div className='grid grid-cols-2 gap-2'>
                       <Button
-                        variant={noteData.userInteractions?.hasLiked ? "default" : "outline"}
-                        size="sm"
+                        variant={
+                          noteData.userInteractions?.hasLiked
+                            ? 'default'
+                            : 'outline'
+                        }
+                        size='sm'
                         disabled={actionLoading.like}
                       >
-                        <Heart className="w-4 h-4 mr-1" />
+                        <Heart className='w-4 h-4 mr-1' />
                         Like
                       </Button>
                       <Button
-                        variant={noteData.userInteractions?.hasBookmarked ? "default" : "outline"}
-                        size="sm"
+                        variant={
+                          noteData.userInteractions?.hasBookmarked
+                            ? 'default'
+                            : 'outline'
+                        }
+                        size='sm'
                         disabled={actionLoading.bookmark}
                       >
-                        <Bookmark className="w-4 h-4 mr-1" />
+                        <Bookmark className='w-4 h-4 mr-1' />
                         Save
                       </Button>
                     </div>
@@ -670,19 +726,22 @@ const NoteDetails = () => {
 
             {/* Privacy Badge */}
             <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <Badge variant="outline" className="mb-2">
+              <CardContent className='pt-6'>
+                <div className='text-center'>
+                  <Badge variant='outline' className='mb-2'>
                     {noteData.visibility} visibility
                   </Badge>
-                  <p className="text-xs text-gray-500">
-                    This note is visible to {
-                      noteData.visibility === 'public' ? 'everyone' :
-                        noteData.visibility === 'university' ? 'university students' :
-                          noteData.visibility === 'department' ? 'department students' :
-                            noteData.visibility === 'course' ? 'course students' :
-                              'owner only'
-                    }
+                  <p className='text-xs text-gray-500'>
+                    This note is visible to{' '}
+                    {noteData.visibility === 'public'
+                      ? 'everyone'
+                      : noteData.visibility === 'university'
+                        ? 'university students'
+                        : noteData.visibility === 'department'
+                          ? 'department students'
+                          : noteData.visibility === 'course'
+                            ? 'course students'
+                            : 'owner only'}
                   </p>
                 </div>
               </CardContent>
