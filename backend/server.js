@@ -10,7 +10,7 @@ import dotenv from 'dotenv';
 import { clerkMiddleware } from '@clerk/express';
 
 // Import database connection
-import connectDB from './src/config/database.js';
+import connectDB, { getDBStatus } from './src/config/database.js';
 
 // Import routes
 import authRoutes from './src/routes/auth.js';
@@ -20,9 +20,6 @@ import profileRoutes from './src/routes/profile.js';
 
 // Load environment variables
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
 
 // Create Express app
 const app = express();
@@ -108,11 +105,28 @@ if (process.env.NODE_ENV === 'development') {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+   const dbStatus = getDBStatus();
    res.status(200).json({
       success: true,
       message: 'Server is running!',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
+      database: {
+         isConnected: dbStatus.isConnected,
+         readyState: dbStatus.readyState,
+         host: dbStatus.host,
+         database: dbStatus.databaseName,
+      },
+   });
+});
+
+// Database status endpoint
+app.get('/api/db-status', (req, res) => {
+   const dbStatus = getDBStatus();
+   res.status(200).json({
+      success: true,
+      database: dbStatus,
+      timestamp: new Date().toISOString(),
    });
 });
 
@@ -124,6 +138,7 @@ app.get('/api', (req, res) => {
       version: '1.0.0',
       endpoints: {
          health: '/health',
+         dbStatus: '/api/db-status',
          auth: '/api/auth',
          notes: '/api/notes',
          profile: '/api/profile',
@@ -183,22 +198,52 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-const server = app.listen(PORT, () => {
-   console.log(`
-  🚀 Server is running!
-  🌍 Environment: ${process.env.NODE_ENV}
-  🔗 URL: http://localhost:${PORT}
-  📚 API: http://localhost:${PORT}/api
-  ❤️  Health: http://localhost:${PORT}/health
-  `);
+// Start server function
+const startServer = async () => {
+   try {
+      // Connect to database
+      await connectDB();
+      console.log('🎉 Database initialization completed');
+
+      // Start listening
+      const server = app.listen(PORT, () => {
+         console.log(`
+🚀 Server is running!
+🌍 Environment: ${process.env.NODE_ENV}
+🔗 URL: http://localhost:${PORT}
+📚 API: http://localhost:${PORT}/api
+❤️  Health: http://localhost:${PORT}/health
+         `);
+      });
+
+      return server;
+   } catch (error) {
+      console.error('💥 Failed to start server:', error.message);
+      if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+         process.exit(1);
+      }
+   }
+};
+
+// Start the server
+let serverInstance;
+startServer().then(server => {
+   serverInstance = server;
+}).catch(error => {
+   console.error('Failed to start server:', error);
+   process.exit(1);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
    console.log('Unhandled Rejection at:', promise, 'reason:', err);
-   server.close(() => {
+   if (serverInstance) {
+      serverInstance.close(() => {
+         process.exit(1);
+      });
+   } else {
       process.exit(1);
-   });
+   }
 });
 
 // Handle uncaught exceptions
