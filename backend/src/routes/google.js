@@ -76,20 +76,23 @@ router.get('/callback', async (req, res) => {
    try {
       const { code, error } = req.query;
 
+      // Use FRONTEND_URL environment variable instead of hardcoded localhost
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
       if (error) {
-         return res.redirect(`http://localhost:5173/auth/google/callback?error=${encodeURIComponent(error)}`);
+         return res.redirect(`${frontendUrl}/auth/google/callback?error=${encodeURIComponent(error)}`);
       }
 
       if (!code) {
-         return res.redirect(`http://localhost:5173/auth/google/callback?error=No authorization code received`);
+         return res.redirect(`${frontendUrl}/auth/google/callback?error=No authorization code received`);
       }
 
       // Redirect to frontend callback with the code
-      res.redirect(`http://localhost:5173/auth/google/callback?code=${encodeURIComponent(code)}`);
+      res.redirect(`${frontendUrl}/auth/google/callback?code=${encodeURIComponent(code)}`);
 
    } catch (error) {
       console.error('Google OAuth callback error:', error);
-      res.redirect(`http://localhost:5173/auth/google/callback?error=${encodeURIComponent(error.message)}`);
+      res.redirect(`${frontendUrl}/auth/google/callback?error=${encodeURIComponent(error.message)}`);
    }
 });
 
