@@ -236,7 +236,7 @@ const ProfileOverview = () => {
           <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4'>
             <div className='text-center p-3 sm:p-4 bg-blue-50 rounded-lg border'>
               <div className='text-lg sm:text-xl lg:text-2xl font-bold text-blue-600'>
-                {user.activity.favoriteNotes.length}
+                {user.activity.totalFavorites || 0}
               </div>
               <div className='text-xs sm:text-sm text-muted-foreground'>
                 Favorite Notes
@@ -244,7 +244,7 @@ const ProfileOverview = () => {
             </div>
             <div className='text-center p-3 sm:p-4 bg-green-50 rounded-lg border'>
               <div className='text-lg sm:text-xl lg:text-2xl font-bold text-green-600'>
-                {user.activity.wishlistNotes.length}
+                {user.activity.totalWishlist || 0}
               </div>
               <div className='text-xs sm:text-sm text-muted-foreground'>
                 Wishlist Items
@@ -252,7 +252,7 @@ const ProfileOverview = () => {
             </div>
             <div className='text-center p-3 sm:p-4 bg-purple-50 rounded-lg border'>
               <div className='text-lg sm:text-xl lg:text-2xl font-bold text-purple-600'>
-                {user.activity.followers.length}
+                {user.activity.totalFollowers || 0}
               </div>
               <div className='text-xs sm:text-sm text-muted-foreground'>
                 Followers
@@ -260,7 +260,7 @@ const ProfileOverview = () => {
             </div>
             <div className='text-center p-3 sm:p-4 bg-indigo-50 rounded-lg border'>
               <div className='text-lg sm:text-xl lg:text-2xl font-bold text-indigo-600'>
-                {user.activity.following.length}
+                {user.activity.totalFollowing || 0}
               </div>
               <div className='text-xs sm:text-sm text-muted-foreground'>
                 Following

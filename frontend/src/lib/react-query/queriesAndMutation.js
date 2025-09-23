@@ -415,3 +415,121 @@ export const useUpdateProfile = () => {
     },
   })
 }
+
+// Mutation to follow a user
+export const useFollowUser = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.FOLLOW_USER,
+    mutationFn: profileAPI.followUser,
+    onMutate: async (username) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username) })
+
+      // Snapshot the previous value for rollback
+      const previousProfile = queryClient.getQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username))
+
+      // Optimistically update the profile to show following state
+      if (previousProfile?.user) {
+        queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), {
+          ...previousProfile,
+          user: {
+            ...previousProfile.user,
+            relationship: {
+              ...previousProfile.user.relationship,
+              isFollowing: true
+            }
+          }
+        })
+      }
+
+      // Return context for rollback
+      return { previousProfile, username }
+    },
+    onSuccess: (data, username) => {
+      if (data.success) {
+        // Only invalidate the essential queries
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_FOLLOWING,
+          exact: true
+        })
+
+        console.log('User followed successfully:', data.message)
+      }
+    },
+    onError: (error, username, context) => {
+      // Rollback on error
+      if (context?.previousProfile) {
+        queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), context.previousProfile)
+      }
+      console.error('Follow user failed:', error)
+    },
+    onSettled: (data, error, username) => {
+      // Only refetch the public profile to ensure consistency
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+        exact: true
+      })
+    }
+  })
+}
+
+// Mutation to unfollow a user
+export const useUnfollowUser = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.UNFOLLOW_USER,
+    mutationFn: profileAPI.unfollowUser,
+    onMutate: async (username) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username) })
+
+      // Snapshot the previous value for rollback
+      const previousProfile = queryClient.getQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username))
+
+      // Optimistically update the profile to show unfollowing state
+      if (previousProfile?.user) {
+        queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), {
+          ...previousProfile,
+          user: {
+            ...previousProfile.user,
+            relationship: {
+              ...previousProfile.user.relationship,
+              isFollowing: false
+            }
+          }
+        })
+      }
+
+      // Return context for rollback
+      return { previousProfile, username }
+    },
+    onSuccess: (data, username) => {
+      if (data.success) {
+        // Only invalidate the essential queries
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_FOLLOWING,
+          exact: true
+        })
+
+        console.log('User unfollowed successfully:', data.message)
+      }
+    },
+    onError: (error, username, context) => {
+      // Rollback on error
+      if (context?.previousProfile) {
+        queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), context.previousProfile)
+      }
+      console.error('Unfollow user failed:', error)
+    },
+    onSettled: (data, error, username) => {
+      // Only refetch the public profile to ensure consistency
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+        exact: true
+      })
+    }
+  })
+}

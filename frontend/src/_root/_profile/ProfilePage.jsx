@@ -245,7 +245,7 @@ const ProfilePage = () => {
                   <div className='grid grid-cols-3 gap-3 sm:gap-6 mt-4 sm:mt-6 pt-4 border-t'>
                     <div className='text-center'>
                       <div className='text-lg sm:text-2xl font-bold text-blue-600'>
-                        {profileData.user.activity.totalUploads}
+                        {profileData.user.activity.totalUploads || 0}
                       </div>
                       <div className='text-xs sm:text-sm text-gray-500'>
                         Notes
@@ -253,7 +253,7 @@ const ProfilePage = () => {
                     </div>
                     <div className='text-center'>
                       <div className='text-lg sm:text-2xl font-bold text-green-600'>
-                        {profileData.user.activity.followers.length}
+                        {profileData.user.activity.totalFollowers || 0}
                       </div>
                       <div className='text-xs sm:text-sm text-gray-500'>
                         Followers
@@ -261,7 +261,7 @@ const ProfilePage = () => {
                     </div>
                     <div className='text-center'>
                       <div className='text-lg sm:text-2xl font-bold text-purple-600'>
-                        {profileData.user.activity.following.length}
+                        {profileData.user.activity.totalFollowing || 0}
                       </div>
                       <div className='text-xs sm:text-sm text-gray-500'>
                         Following

@@ -4,29 +4,11 @@ import mongoose from 'mongoose';
 // Get user profile with complete information
 export const getUserProfile = async (req, res) => {
    try {
-      // Find user by clerkId and populate relevant data
+      // Find user by clerkId - No population needed for efficiency
       console.log('Fetching profile for clerkId:', req.clerkId);
       const user = await User.findOne({ clerkId: req.clerkId })
-         .populate({
-            path: 'activity.notesUploaded',
-            select: 'title subject.name file.downloadUrl uploadDate'
-         })
-         .populate({
-            path: 'activity.favoriteNotes',
-            select: 'title subject.name file.downloadUrl uploader'
-         })
-         .populate({
-            path: 'activity.wishlistNotes',
-            select: 'title subject.name file.downloadUrl uploader'
-         })
-         .populate({
-            path: 'activity.following',
-            select: 'profile.firstName profile.lastName profile.avatar username'
-         })
-         .populate({
-            path: 'activity.followers',
-            select: 'profile.firstName profile.lastName profile.avatar username'
-         });
+         .select('-driveIntegration.refreshToken') // Exclude sensitive data
+         .lean(); // Use lean() for better performance
 
       if (!user) {
          return res.status(404).json({
@@ -35,11 +17,16 @@ export const getUserProfile = async (req, res) => {
          });
       }
 
-      // Get additional statistics
-      const uploadedNotesCount = await Note.countDocuments({ uploader: user._id });
-      const totalDownloads = await Note.aggregate([
-         { $match: { uploader: user._id } },
-         { $group: { _id: null, total: { $sum: '$social.downloads' } } }
+      // Get additional statistics efficiently in parallel
+      const [totalDownloads, totalLikes] = await Promise.all([
+         Note.aggregate([
+            { $match: { uploader: user._id } },
+            { $group: { _id: null, total: { $sum: '$social.downloads' } } }
+         ]),
+         Note.aggregate([
+            { $match: { uploader: user._id } },
+            { $group: { _id: null, total: { $sum: '$social.likes' } } }
+         ])
       ]);
 
       const response = {
@@ -55,7 +42,7 @@ export const getUserProfile = async (req, res) => {
             profile: {
                firstName: user.profile.firstName,
                lastName: user.profile.lastName,
-               fullName: user.profile.fullName,
+               fullName: `${user.profile.firstName} ${user.profile.lastName}`, // Computed here since lean() doesn't include virtuals
                avatar: user.profile.avatar,
                bio: user.profile.bio,
                dateOfBirth: user.profile.dateOfBirth,
@@ -64,51 +51,57 @@ export const getUserProfile = async (req, res) => {
 
             // Academic Info
             academic: {
-               university: user.academic.university,
-               department: user.academic.department,
-               currentSemester: user.academic.currentSemester,
-               graduationYear: user.academic.graduationYear,
-               studentId: user.academic.studentId,
-               degree: user.academic.degree
+               university: user.academic?.university,
+               department: user.academic?.department,
+               currentSemester: user.academic?.currentSemester,
+               graduationYear: user.academic?.graduationYear,
+               studentId: user.academic?.studentId,
+               degree: user.academic?.degree
             },
 
             // Contact Info
             contact: {
-               phone: user.contact.phone,
-               address: user.contact.address,
-               socialLinks: user.contact.socialLinks
+               phone: user.contact?.phone,
+               address: user.contact?.address,
+               socialLinks: user.contact?.socialLinks
             },
 
             // Preferences
             preferences: user.preferences,
 
-            // Activity Stats
+            // Activity Stats - Only counts, no arrays
             activity: {
-               notesUploaded: user.activity.notesUploaded,
-               favoriteNotes: user.activity.favoriteNotes,
-               wishlistNotes: user.activity.wishlistNotes,
-               following: user.activity.following,
-               followers: user.activity.followers,
-               totalUploads: uploadedNotesCount,
-               totalLikesReceived: user.activity.totalLikesReceived,
-               totalDownloads: totalDownloads[0]?.total || 0
+               // Counts only - arrays handled by separate APIs
+               totalUploads: user.activity?.notesUploaded?.length || 0,
+               totalFavorites: user.activity?.favoriteNotes?.length || 0,
+               totalWishlist: user.activity?.wishlistNotes?.length || 0,
+               totalFollowing: user.activity?.following?.length || 0,
+               totalFollowers: user.activity?.followers?.length || 0,
+
+               // Computed stats
+               totalDownloads: totalDownloads[0]?.total || 0,
+               totalLikesReceived: totalLikes[0]?.total || 0,
+
+               // Legacy support (can remove these later)
+               totalLikesReceived_legacy: user.activity?.totalLikesReceived || 0,
+               totalDownloads_legacy: user.activity?.totalDownloads || 0
             },
 
             // Account Status
             account: {
-               isVerified: user.account.isVerified,
-               isActive: user.account.isActive,
-               role: user.account.role,
-               lastLogin: user.account.lastLogin,
+               isVerified: user.account?.isVerified || false,
+               isActive: user.account?.isActive || true,
+               role: user.account?.role || 'student',
+               lastLogin: user.account?.lastLogin,
                createdAt: user.createdAt
             },
 
             // Drive Integration
             driveIntegration: {
-               isConnected: user.driveIntegration.isConnected,
-               driveEmail: user.driveIntegration.driveEmail,
-               lastSync: user.driveIntegration.lastSync,
-               storageQuota: user.driveIntegration.storageQuota
+               isConnected: user.driveIntegration?.isConnected || false,
+               driveEmail: user.driveIntegration?.driveEmail,
+               lastSync: user.driveIntegration?.lastSync,
+               storageQuota: user.driveIntegration?.storageQuota
             }
          }
       };
@@ -307,10 +300,26 @@ export const getUserFollowers = async (req, res) => {
          });
       }
 
+      const { page = 1, limit = 20 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      // Get count efficiently without fetching data
+      const totalFollowers = await User.aggregate([
+         { $match: { _id: req.user._id } },
+         { $project: { followersCount: { $size: '$activity.followers' } } }
+      ]);
+
+      const followersCount = totalFollowers[0]?.followersCount || 0;
+
+      // Only fetch the requested page of followers
       const user = await User.findById(req.user._id)
          .populate({
             path: 'activity.followers',
-            select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department'
+            select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department',
+            options: {
+               skip: skip,
+               limit: parseInt(limit)
+            }
          });
 
       if (!user) {
@@ -324,7 +333,14 @@ export const getUserFollowers = async (req, res) => {
          success: true,
          data: {
             followers: user.activity.followers,
-            count: user.activity.followers.length
+            pagination: {
+               currentPage: parseInt(page),
+               totalPages: Math.ceil(followersCount / parseInt(limit)),
+               totalFollowers: followersCount,
+               hasNextPage: skip + parseInt(limit) < followersCount,
+               hasPrevPage: parseInt(page) > 1,
+               limit: parseInt(limit)
+            }
          }
       });
    } catch (error) {
@@ -348,10 +364,26 @@ export const getUserFollowing = async (req, res) => {
          });
       }
 
+      const { page = 1, limit = 20 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      // Get count efficiently without fetching data
+      const totalFollowing = await User.aggregate([
+         { $match: { _id: req.user._id } },
+         { $project: { followingCount: { $size: '$activity.following' } } }
+      ]);
+
+      const followingCount = totalFollowing[0]?.followingCount || 0;
+
+      // Only fetch the requested page of following
       const user = await User.findById(req.user._id)
          .populate({
             path: 'activity.following',
-            select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department'
+            select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department',
+            options: {
+               skip: skip,
+               limit: parseInt(limit)
+            }
          });
 
       if (!user) {
@@ -365,7 +397,14 @@ export const getUserFollowing = async (req, res) => {
          success: true,
          data: {
             following: user.activity.following,
-            count: user.activity.following.length
+            pagination: {
+               currentPage: parseInt(page),
+               totalPages: Math.ceil(followingCount / parseInt(limit)),
+               totalFollowing: followingCount,
+               hasNextPage: skip + parseInt(limit) < followingCount,
+               hasPrevPage: parseInt(page) > 1,
+               limit: parseInt(limit)
+            }
          }
       });
    } catch (error) {
@@ -879,6 +918,178 @@ export const getPublicUserNotes = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to fetch user notes',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Follow a user
+export const followUser = async (req, res) => {
+   try {
+      const { username } = req.params;
+
+      if (!req.user) {
+         return res.status(401).json({
+            success: false,
+            message: 'Authentication required'
+         });
+      }
+
+      // Find the user to follow
+      const userToFollow = await User.findOne({
+         username,
+         'account.isActive': true
+      });
+
+      if (!userToFollow) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found'
+         });
+      }
+
+      // Check if trying to follow self
+      if (userToFollow._id.toString() === req.user._id.toString()) {
+         return res.status(400).json({
+            success: false,
+            message: 'You cannot follow yourself'
+         });
+      }
+
+      // Check privacy settings
+      if (userToFollow.preferences?.privacy?.profileVisibility === 'private') {
+         return res.status(403).json({
+            success: false,
+            message: 'This user\'s profile is private'
+         });
+      }
+
+      // Use atomic operations to update both users - MongoDB handles duplicates with $addToSet
+      const [currentUserResult, targetUserResult] = await Promise.all([
+         User.findByIdAndUpdate(
+            req.user._id,
+            { $addToSet: { 'activity.following': userToFollow._id } },
+            { new: true }
+         ),
+         User.findByIdAndUpdate(
+            userToFollow._id,
+            { $addToSet: { 'activity.followers': req.user._id } },
+            { new: true }
+         )
+      ]);
+
+      // Check if the follow action actually happened (not already following)
+      const wasAlreadyFollowing = !currentUserResult.activity.following.includes(userToFollow._id) ||
+         !targetUserResult.activity.followers.includes(req.user._id);
+
+      if (wasAlreadyFollowing) {
+         return res.status(400).json({
+            success: false,
+            message: 'You are already following this user'
+         });
+      }
+
+      res.status(200).json({
+         success: true,
+         message: `You are now following ${userToFollow.profile.firstName}`,
+         data: {
+            followedUser: {
+               id: userToFollow._id,
+               username: userToFollow.username,
+               name: userToFollow.profile.fullName,
+               avatar: userToFollow.profile.avatar
+            },
+            relationship: {
+               isFollowing: true,
+               followersCount: targetUserResult.activity.followers.length,
+               followingCount: currentUserResult.activity.following.length
+            }
+         }
+      });
+
+   } catch (error) {
+      console.error('Follow user error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to follow user',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Unfollow a user
+export const unfollowUser = async (req, res) => {
+   try {
+      const { username } = req.params;
+
+      if (!req.user) {
+         return res.status(401).json({
+            success: false,
+            message: 'Authentication required'
+         });
+      }
+
+      // Find the user to unfollow
+      const userToUnfollow = await User.findOne({
+         username,
+         'account.isActive': true
+      });
+
+      if (!userToUnfollow) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found'
+         });
+      }
+
+      // Use atomic operations to update both users
+      const [currentUserResult, targetUserResult] = await Promise.all([
+         User.findByIdAndUpdate(
+            req.user._id,
+            { $pull: { 'activity.following': userToUnfollow._id } },
+            { new: true }
+         ),
+         User.findByIdAndUpdate(
+            userToUnfollow._id,
+            { $pull: { 'activity.followers': req.user._id } },
+            { new: true }
+         )
+      ]);
+
+      // Check if the unfollow action actually happened
+      const wasNotFollowing = currentUserResult.activity.following.includes(userToUnfollow._id) ||
+         targetUserResult.activity.followers.includes(req.user._id);
+
+      if (wasNotFollowing) {
+         return res.status(400).json({
+            success: false,
+            message: 'You are not following this user'
+         });
+      }
+
+      res.status(200).json({
+         success: true,
+         message: `You unfollowed ${userToUnfollow.profile.firstName}`,
+         data: {
+            unfollowedUser: {
+               id: userToUnfollow._id,
+               username: userToUnfollow.username,
+               name: userToUnfollow.profile.fullName,
+               avatar: userToUnfollow.profile.avatar
+            },
+            relationship: {
+               isFollowing: false,
+               followersCount: targetUserResult.activity.followers.length,
+               followingCount: currentUserResult.activity.following.length
+            }
+         }
+      });
+
+   } catch (error) {
+      console.error('Unfollow user error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to unfollow user',
          error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
    }

@@ -254,7 +254,9 @@ const userSchema = new mongoose.Schema({
    toJSON: {
       virtuals: true,
       transform: function (doc, ret) {
-         delete ret.driveIntegration.refreshToken;
+         if (ret.driveIntegration && ret.driveIntegration.refreshToken) {
+            delete ret.driveIntegration.refreshToken;
+         }
          return ret;
       }
    },

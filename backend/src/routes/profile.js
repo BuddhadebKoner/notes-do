@@ -9,7 +9,9 @@ import {
    updateUserProfile,
    getUserActivityStats,
    getPublicUserProfile,
-   getPublicUserNotes
+   getPublicUserNotes,
+   followUser,
+   unfollowUser
 } from '../controllers/profile.js';
 import { requireAuth, requireUserInDB, optionalAuth } from '../middleware/auth.js';
 
@@ -46,5 +48,9 @@ router.get('/stats', getUserActivityStats);
 
 // Update user profile
 router.put('/', updateUserProfile);
+
+// Follow/Unfollow user routes
+router.post('/follow/:username', followUser);
+router.delete('/follow/:username', unfollowUser);
 
 export default router;

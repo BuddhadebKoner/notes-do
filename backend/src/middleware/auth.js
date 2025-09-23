@@ -13,7 +13,6 @@ export const requireAuth = async (req, res, next) => {
    try {
       // Use the new getAuth() function from @clerk/express
       const auth = getAuth(req);
-      console.log('UserAuth middleware - Auth object:', auth);
 
       if (!auth.userId) {
          return res.status(401).json({

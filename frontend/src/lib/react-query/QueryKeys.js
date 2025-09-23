@@ -35,4 +35,6 @@ export const QUERY_KEYS = {
   GET_FOLLOWERS: ['profile', 'followers'],
   GET_FOLLOWING: ['profile', 'following'],
   GET_ACTIVITY_STATS: ['profile', 'activity-stats'],
+  FOLLOW_USER: ['profile', 'follow'],
+  UNFOLLOW_USER: ['profile', 'unfollow'],
 }

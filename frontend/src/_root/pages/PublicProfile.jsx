@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { useGetPublicProfile } from '../../lib/react-query/queriesAndMutation.js'
+import useFollowUserLogic from '../../hooks/useFollowUser.js'
 import {
   Card,
   CardContent,
@@ -54,10 +55,24 @@ const PublicProfile = () => {
   // Extract user data from the response
   const userData = profileData?.user
 
-  // Handle follow action (placeholder)
-  const handleFollow = () => {
-    // TODO: Implement follow functionality
-    console.log('Follow/Unfollow user:', userData.username)
+  // Follow logic hook
+  const {
+    isFollowing,
+    canFollow: canFollowUser,
+    isLoading: followLoading,
+    toggleFollow,
+    error: followError
+  } = useFollowUserLogic(userData ? {
+    id: userData.id,
+    username: userData.username,
+    name: userData.profile?.fullName,
+    relationship: userData.relationship,
+    privacy: userData.privacy
+  } : null)
+
+  // Handle follow action
+  const handleFollow = async () => {
+    await toggleFollow()
   }
 
   // Handle message action (placeholder)
@@ -226,10 +241,28 @@ const PublicProfile = () => {
               {/* Action Buttons */}
               {!isOwnProfile && (
                 <div className='flex gap-2'>
-                  {canFollow && (
-                    <Button onClick={handleFollow} size='sm'>
-                      <UserPlus className='h-4 w-4 mr-2' />
-                      {relationship?.isFollowing ? 'Unfollow' : 'Follow'}
+                  {(canFollow || canFollowUser) && (
+                    <Button
+                      onClick={handleFollow}
+                      size='sm'
+                      disabled={followLoading}
+                      variant={isFollowing ? 'outline' : 'default'}
+                    >
+                      {followLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                          {isFollowing ? 'Unfollowing...' : 'Following...'}
+                        </>
+                      ) : (
+                        <>
+                          {isFollowing ? (
+                            <UserCheck className='h-4 w-4 mr-2' />
+                          ) : (
+                            <UserPlus className='h-4 w-4 mr-2' />
+                          )}
+                          {isFollowing ? 'Following' : 'Follow'}
+                        </>
+                      )}
                     </Button>
                   )}
                   <Button variant='outline' onClick={handleMessage} size='sm'>

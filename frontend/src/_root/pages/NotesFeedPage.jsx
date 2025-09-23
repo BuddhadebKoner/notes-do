@@ -65,7 +65,6 @@ const NotesFeedPage = () => {
 
   // Memoize filters to prevent unnecessary API calls
   const memoizedFilters = useMemo(() => {
-    console.log('📝 Filters Updated:', filters) // Debug log
     return filters
   }, [
     filters.search,

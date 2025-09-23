@@ -180,6 +180,35 @@ export const profileAPI = {
       throw error.response?.data || error.message
     }
   },
+
+  // Follow a user by username
+  followUser: async username => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        `${API_ENDPOINTS.PROFILE.FOLLOW_USER}/${username}`,
+        {},
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Unfollow a user by username
+  unfollowUser: async username => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.delete(
+        `${API_ENDPOINTS.PROFILE.UNFOLLOW_USER}/${username}`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
 }
 
 // Notes API services
@@ -235,8 +264,6 @@ export const notesAPI = {
           params[key] = String(value).trim()
         }
       })
-
-      console.log('API Request params:', params) // Debug log
 
       const response = await api.get(API_ENDPOINTS.NOTES.GET_FEED, {
         params,
