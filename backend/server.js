@@ -12,7 +12,6 @@ import { clerkMiddleware } from '@clerk/express';
 // Import database connection
 import connectDB from './src/config/database.js';
 
-
 // Import routes
 import authRoutes from './src/routes/auth.js';
 import noteRoutes from './src/routes/notes.js';

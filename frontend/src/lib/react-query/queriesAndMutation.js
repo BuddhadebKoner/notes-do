@@ -195,6 +195,25 @@ export const useGetActivityStats = () => {
    })
 }
 
+// Query to get public user profile by username
+export const useGetPublicProfile = (username) => {
+   return useQuery({
+      queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+      queryFn: () => profileAPI.getPublicProfile(username),
+      enabled: !!username, // Only run query when username is available
+      staleTime: 3 * 60 * 1000, // 3 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      retry: (failureCount, error) => {
+         // Don't retry for 404 (user not found) or 403 (access denied) errors
+         if (error.status === 404 || error.status === 403) {
+            return false
+         }
+         // Retry up to 2 times for other errors
+         return failureCount < 2
+      }
+   })
+}
+
 // ========== NOTES QUERIES ==========
 
 // Query to get single note by ID

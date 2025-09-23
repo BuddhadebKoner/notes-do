@@ -32,14 +32,14 @@ router.post('/upload',
    uploadNote
 );
 
-// Get notes feed - optimized for cards display
-router.get('/feed', optionalAuth, getNotesFeed);
+// Get notes feed - optimized for cards display (public access)
+router.get('/feed', getNotesFeed);
 
-// Get single note by ID (optional authentication for view tracking)
-router.get('/:id', optionalAuth, getNoteById);
+// Get single note by ID (public access for public notes)
+router.get('/:id', getNoteById);
 
-// Download note file (optional authentication for download tracking)
-router.get('/:id/download', optionalAuth, downloadNote);
+// Download note file (public access for public notes)
+router.get('/:id/download', downloadNote);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

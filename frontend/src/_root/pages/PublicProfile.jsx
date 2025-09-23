@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { profileAPI } from '../../services/api.js'
+import { useGetPublicProfile } from '../../lib/react-query/queriesAndMutation.js'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card.jsx'
 import { Avatar, AvatarImage, AvatarFallback } from '../../components/ui/avatar.jsx'
 import { Badge } from '../../components/ui/badge.jsx'
@@ -34,29 +34,15 @@ const PublicProfile = () => {
    const navigate = useNavigate()
    const { user: clerkUser } = useUser()
 
-   const [userData, setUserData] = useState(null)
-   const [loading, setLoading] = useState(true)
-   const [error, setError] = useState(null)
+   // Use React Query hook for fetching public profile
+   const {
+      data: profileData,
+      isLoading: loading,
+      error
+   } = useGetPublicProfile(username)
 
-   useEffect(() => {
-      const fetchUserProfile = async () => {
-         try {
-            setLoading(true)
-            setError(null)
-            const response = await profileAPI.getPublicProfile(username)
-            setUserData(response.user)
-         } catch (error) {
-            console.error('Error fetching public profile:', error)
-            setError(error.message || 'Failed to load profile')
-         } finally {
-            setLoading(false)
-         }
-      }
-
-      if (username) {
-         fetchUserProfile()
-      }
-   }, [username])
+   // Extract user data from the response
+   const userData = profileData?.user
 
    // Handle follow action (placeholder)
    const handleFollow = () => {
@@ -115,19 +101,22 @@ const PublicProfile = () => {
       )
    }
 
-   if (error || !userData) {
+   if (error || (!loading && !userData)) {
+      const errorMessage = error?.message || error || 'Unable to load this profile at the moment.'
+      const isUserNotFound = errorMessage.toLowerCase().includes('not found') || error?.status === 404
+
       return (
          <div className="container mx-auto px-4 py-8 max-w-4xl">
             <Card>
                <CardContent className="p-12 text-center">
                   <div className="text-6xl mb-4">😕</div>
                   <h2 className="text-2xl font-semibold mb-2">
-                     {error === 'User not found' ? 'User Not Found' : 'Profile Unavailable'}
+                     {isUserNotFound ? 'User Not Found' : 'Profile Unavailable'}
                   </h2>
                   <p className="text-gray-600 mb-4">
-                     {error === 'User not found'
+                     {isUserNotFound
                         ? "The user you're looking for doesn't exist or may have changed their username."
-                        : error || 'Unable to load this profile at the moment.'
+                        : errorMessage
                      }
                   </p>
                   <Button onClick={() => navigate('/')} variant="outline">

@@ -14,6 +14,7 @@ export const QUERY_KEYS = {
    // Profile related queries
    GET_PROFILE: ['profile', 'details'],
    UPDATE_PROFILE: ['profile', 'update'],
+   GET_PUBLIC_PROFILE: (username) => ['profile', 'public', username],
    GET_UPLOADED_NOTES: (page, limit, sortBy, sortOrder) => ['profile', 'uploaded-notes', { page, limit, sortBy, sortOrder }],
    GET_WISHLIST: (page, limit) => ['profile', 'wishlist', { page, limit }],
    GET_FAVORITES: (page, limit) => ['profile', 'favorites', { page, limit }],

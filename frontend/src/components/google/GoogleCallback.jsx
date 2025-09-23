@@ -93,7 +93,6 @@ const GoogleCallback = () => {
             }
 
             const data = await response.json()
-            console.log('Callback response data:', data)
 
             if (data.success) {
                // Store the token in localStorage
