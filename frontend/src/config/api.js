@@ -24,6 +24,7 @@ export const API_ENDPOINTS = {
     STATS: '/profile/stats',
     PUBLIC_PROFILE: '/profile/user',
     PUBLIC_USER_NOTES: '/profile/user',
+    PUBLIC_USER_FOLLOWERS: '/profile/user',
     FOLLOW_USER: '/profile/follow',
     UNFOLLOW_USER: '/profile/follow',
   },

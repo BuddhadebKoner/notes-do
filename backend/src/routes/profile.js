@@ -10,6 +10,7 @@ import {
    getUserActivityStats,
    getPublicUserProfile,
    getPublicUserNotes,
+   getPublicUserFollowers,
    followUser,
    unfollowUser
 } from '../controllers/profile.js';
@@ -20,6 +21,7 @@ const router = express.Router();
 // Public routes for viewing user profiles and notes (optional auth to check privacy settings)
 router.get('/user/:username', optionalAuth, getPublicUserProfile);
 router.get('/user/:username/notes', optionalAuth, getPublicUserNotes);
+router.get('/user/:username/followers', optionalAuth, getPublicUserFollowers);
 
 // Apply authentication middleware to all other routes
 router.use(requireAuth);

@@ -252,6 +252,32 @@ export const useGetPublicUserNotes = (username, options = {}) => {
   })
 }
 
+// Query to get public user followers by username with pagination
+export const useGetPublicUserFollowers = (username, options = {}) => {
+  const { page = 1, limit = 20 } = options
+
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_PUBLIC_USER_FOLLOWERS(username, page, limit),
+    queryFn: () =>
+      profileAPI.getPublicUserFollowers(username, {
+        page,
+        limit,
+      }),
+    enabled: !!username, // Only run query when username is available
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    keepPreviousData: true, // Keep previous data while fetching new page
+    retry: (failureCount, error) => {
+      // Don't retry for 403 (access denied) or 404 (user not found) errors
+      if (error.status === 403 || error.status === 404) {
+        return false
+      }
+      // Retry up to 2 times for other errors
+      return failureCount < 2
+    },
+  })
+}
+
 // ========== NOTES QUERIES ==========
 
 // Query to get single note by ID

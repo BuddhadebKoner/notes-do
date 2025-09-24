@@ -185,6 +185,26 @@ export const profileAPI = {
     }
   },
 
+  // Get public user followers by username with pagination
+  getPublicUserFollowers: async (username, { page = 1, limit = 20 } = {}) => {
+    try {
+      // Public endpoint - no authentication required
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      })
+      const response = await api.get(
+        `${API_ENDPOINTS.PROFILE.PUBLIC_USER_FOLLOWERS}/${username}/followers?${params}`,
+        {
+          skipAuth: true, // Flag to skip authentication in interceptor
+        }
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
   // Follow a user by username
   followUser: async username => {
     try {

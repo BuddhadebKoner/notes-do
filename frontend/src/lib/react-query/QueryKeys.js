@@ -25,6 +25,12 @@ export const QUERY_KEYS = {
     username,
     { page, limit, sortBy, sortOrder },
   ],
+  GET_PUBLIC_USER_FOLLOWERS: (username, page, limit) => [
+    'profile',
+    'public-followers',
+    username,
+    { page, limit },
+  ],
   GET_UPLOADED_NOTES: (page, limit, sortBy, sortOrder) => [
     'profile',
     'uploaded-notes',

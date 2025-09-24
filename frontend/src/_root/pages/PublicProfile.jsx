@@ -18,6 +18,7 @@ import { Badge } from '../../components/ui/badge.jsx'
 import { Button } from '../../components/ui/button.jsx'
 import { Skeleton } from '../../components/ui/skeleton.jsx'
 import ConfirmationDialog from '../../components/ui/confirmation-dialog.jsx'
+import FollowersDialog from '../../components/ui/followers-dialog.jsx'
 import PublicUserNotes from '../../components/notes/PublicUserNotes.jsx'
 import {
   MapPin,
@@ -408,15 +409,22 @@ const PublicProfile = () => {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className='p-6 text-center'>
-                  <Users className='h-8 w-8 mx-auto mb-2 text-purple-500' />
-                  <p className='text-2xl font-bold'>
-                    {activity?.followersCount || 0}
-                  </p>
-                  <p className='text-sm text-gray-600'>Followers</p>
-                </CardContent>
-              </Card>
+              <FollowersDialog
+                username={userData.username}
+                followersCount={activity?.followersCount || 0}
+                userFullName={profile?.fullName}
+                trigger={
+                  <Card className='cursor-pointer hover:shadow-md transition-shadow'>
+                    <CardContent className='p-6 text-center'>
+                      <Users className='h-8 w-8 mx-auto mb-2 text-purple-500' />
+                      <p className='text-2xl font-bold'>
+                        {activity?.followersCount || 0}
+                      </p>
+                      <p className='text-sm text-gray-600'>Followers</p>
+                    </CardContent>
+                  </Card>
+                }
+              />
             </div>
 
             {/* Social Links */}

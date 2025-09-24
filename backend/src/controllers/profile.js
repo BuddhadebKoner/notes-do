@@ -637,7 +637,7 @@ export const getPublicUserProfile = async (req, res) => {
          }
       };
 
-      // Determine access level
+      // Determine access level - ensure boolean values
       let hasAccess = false;
       let canFollow = false;
 
@@ -646,31 +646,41 @@ export const getPublicUserProfile = async (req, res) => {
          hasAccess = true;
          canFollow = false;
       } else if (profileVisibility === 'public') {
-         // Public profile - everyone can see
+         // Public profile - everyone can see and follow
          hasAccess = true;
          canFollow = true;
-      } else if (profileVisibility === 'university' && requestingUser) {
-         // University-only - check if same university
-         const sameUniversity = requestingUser.academic?.university &&
-            targetUser.academic?.university &&
-            requestingUser.academic.university.toLowerCase() ===
-            targetUser.academic.university.toLowerCase();
-         hasAccess = sameUniversity;
-         canFollow = sameUniversity;
+      } else if (profileVisibility === 'university') {
+         // University-only - check if user is logged in and same university
+         if (requestingUser) {
+            const sameUniversity = requestingUser.academic?.university &&
+               targetUser.academic?.university &&
+               requestingUser.academic.university.toLowerCase() ===
+               targetUser.academic.university.toLowerCase();
+            hasAccess = Boolean(sameUniversity);
+            canFollow = Boolean(sameUniversity);
+         } else {
+            // Not logged in - no access
+            hasAccess = false;
+            canFollow = false;
+         }
       } else if (profileVisibility === 'private') {
-         // Private profile - minimal info only
+         // Private profile - no access and no follow allowed
          hasAccess = false;
-         canFollow = requestingUser ? true : false; // Can follow if logged in, but can't see details
+         canFollow = false;
+      } else {
+         // Default case - ensure boolean values
+         hasAccess = false;
+         canFollow = false;
       }
 
-      // Build response based on access level
+      // Build response based on access level - ensure boolean values
       let responseData = {
          ...baseProfile,
          privacy: {
             profileVisibility,
-            hasAccess,
-            canFollow,
-            isOwnProfile
+            hasAccess: Boolean(hasAccess),
+            canFollow: Boolean(canFollow),
+            isOwnProfile: Boolean(isOwnProfile)
          }
       };
 
@@ -956,11 +966,35 @@ export const followUser = async (req, res) => {
          });
       }
 
-      // Check privacy settings
-      if (userToFollow.preferences?.privacy?.profileVisibility === 'private') {
+      // Check privacy settings and follow permissions
+      const profileVisibility = userToFollow.preferences?.privacy?.profileVisibility || 'university';
+      let canFollow = false;
+
+      if (profileVisibility === 'public') {
+         // Public profile - anyone can follow
+         canFollow = true;
+      } else if (profileVisibility === 'university') {
+         // University-only - check if same university
+         const sameUniversity = req.user.academic?.university &&
+            userToFollow.academic?.university &&
+            req.user.academic.university.toLowerCase() ===
+            userToFollow.academic.university.toLowerCase();
+         canFollow = sameUniversity;
+      } else if (profileVisibility === 'private') {
+         // Private profile - no one can follow
+         canFollow = false;
+      }
+
+      if (!canFollow) {
+         const message = profileVisibility === 'private'
+            ? 'This user\'s profile is private and cannot be followed'
+            : profileVisibility === 'university'
+               ? 'You can only follow users from the same university'
+               : 'You cannot follow this user';
+
          return res.status(403).json({
             success: false,
-            message: 'This user\'s profile is private'
+            message
          });
       }
 
@@ -1090,6 +1124,132 @@ export const unfollowUser = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to unfollow user',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Get public user's followers with pagination
+export const getPublicUserFollowers = async (req, res) => {
+   try {
+      const { username } = req.params;
+      const { page = 1, limit = 20 } = req.query;
+
+      if (!username) {
+         return res.status(400).json({
+            success: false,
+            message: 'Username is required'
+         });
+      }
+
+      // Find the target user
+      const targetUser = await User.findOne({
+         username: username.toLowerCase(),
+         'account.isActive': true
+      });
+
+      if (!targetUser) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found'
+         });
+      }
+
+      // Get the requesting user's info (if authenticated)
+      let requestingUser = null;
+      let isOwnProfile = false;
+
+      if (req.clerkId) {
+         requestingUser = await User.findOne({ clerkId: req.clerkId });
+         isOwnProfile = requestingUser && requestingUser._id.equals(targetUser._id);
+      }
+
+      // Determine what data to show based on privacy settings
+      const profileVisibility = targetUser.preferences?.privacy?.profileVisibility || 'university';
+
+      // Check access permissions for viewing followers
+      let hasAccess = false;
+
+      if (isOwnProfile) {
+         // Own profile - full access
+         hasAccess = true;
+      } else if (profileVisibility === 'public') {
+         // Public profile - everyone can see followers
+         hasAccess = true;
+      } else if (profileVisibility === 'university' && requestingUser) {
+         // University-only - check if same university
+         const sameUniversity = requestingUser.academic?.university &&
+            targetUser.academic?.university &&
+            requestingUser.academic.university.toLowerCase() ===
+            targetUser.academic.university.toLowerCase();
+         hasAccess = sameUniversity;
+      } else if (profileVisibility === 'private') {
+         // Private profile - no access to followers list
+         hasAccess = false;
+      }
+
+      // If no access, return error
+      if (!hasAccess) {
+         return res.status(403).json({
+            success: false,
+            message: 'You do not have permission to view this user\'s followers'
+         });
+      }
+
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      // Get total followers count efficiently
+      const totalFollowers = await User.aggregate([
+         { $match: { _id: targetUser._id } },
+         { $project: { followersCount: { $size: '$activity.followers' } } }
+      ]);
+
+      const followersCount = totalFollowers[0]?.followersCount || 0;
+
+      // Only fetch the requested page of followers with minimal required data
+      const user = await User.findById(targetUser._id)
+         .populate({
+            path: 'activity.followers',
+            select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department',
+            options: {
+               skip: skip,
+               limit: parseInt(limit)
+            }
+         });
+
+      if (!user) {
+         return res.status(404).json({
+            success: false,
+            message: 'User not found'
+         });
+      }
+
+      res.status(200).json({
+         success: true,
+         data: {
+            followers: user.activity.followers,
+            targetUser: {
+               id: targetUser._id,
+               username: targetUser.username,
+               fullName: `${targetUser.profile.firstName} ${targetUser.profile.lastName}`,
+               avatar: targetUser.profile.avatar
+            },
+            pagination: {
+               currentPage: parseInt(page),
+               totalPages: Math.ceil(followersCount / parseInt(limit)),
+               totalFollowers: followersCount,
+               hasNextPage: skip + parseInt(limit) < followersCount,
+               hasPrevPage: parseInt(page) > 1,
+               limit: parseInt(limit)
+            }
+         }
+      });
+
+   } catch (error) {
+      console.error('Get public user followers error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to fetch followers',
          error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
    }
