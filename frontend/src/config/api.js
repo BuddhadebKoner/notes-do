@@ -65,6 +65,12 @@ export const setAuthToken = token => {
 // Request interceptor - Get fresh token before each request
 api.interceptors.request.use(
   async config => {
+    // Skip authentication for public endpoints
+    if (config.skipAuth) {
+      delete config.skipAuth // Remove the flag from config
+      return config
+    }
+
     // Get fresh token before each request to avoid expiry issues
     if (getTokenFunction) {
       try {
@@ -75,6 +81,8 @@ api.interceptors.request.use(
         }
       } catch (error) {
         console.error('Error getting fresh token:', error)
+        // Don't fail the request if token fetch fails for public endpoints
+        // The backend should handle missing tokens gracefully for public data
       }
     }
     return config

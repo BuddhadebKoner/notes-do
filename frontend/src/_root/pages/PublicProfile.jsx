@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, SignedOut, SignInButton } from '@clerk/clerk-react'
 import { useGetPublicProfile } from '../../lib/react-query/queriesAndMutation.js'
 import useFollowUserLogic from '../../hooks/useFollowUser.js'
 import {
@@ -17,6 +17,7 @@ import {
 import { Badge } from '../../components/ui/badge.jsx'
 import { Button } from '../../components/ui/button.jsx'
 import { Skeleton } from '../../components/ui/skeleton.jsx'
+import ConfirmationDialog from '../../components/ui/confirmation-dialog.jsx'
 import PublicUserNotes from '../../components/notes/PublicUserNotes.jsx'
 import {
   MapPin,
@@ -45,6 +46,10 @@ const PublicProfile = () => {
   const navigate = useNavigate()
   const { user: clerkUser } = useUser()
 
+  // State for confirmation dialog
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [confirmationAction, setConfirmationAction] = useState(null)
+
   // Use React Query hook for fetching public profile
   const {
     data: profileData,
@@ -70,9 +75,28 @@ const PublicProfile = () => {
     privacy: userData.privacy
   } : null)
 
-  // Handle follow action
+  // Handle follow action with confirmation
   const handleFollow = async () => {
-    await toggleFollow()
+    const action = isFollowing ? 'unfollow' : 'follow'
+    setConfirmationAction(action)
+    setShowConfirmation(true)
+  }
+
+  // Confirm follow/unfollow action
+  const confirmFollowAction = async () => {
+    try {
+      await toggleFollow()
+      setShowConfirmation(false)
+      setConfirmationAction(null)
+    } catch (error) {
+      console.error('Follow action failed:', error)
+    }
+  }
+
+  // Cancel confirmation
+  const cancelConfirmation = () => {
+    setShowConfirmation(false)
+    setConfirmationAction(null)
   }
 
   // Handle message action (placeholder)
@@ -242,33 +266,60 @@ const PublicProfile = () => {
               {!isOwnProfile && (
                 <div className='flex gap-2'>
                   {(canFollow || canFollowUser) && (
-                    <Button
-                      onClick={handleFollow}
-                      size='sm'
-                      disabled={followLoading}
-                      variant={isFollowing ? 'outline' : 'default'}
-                    >
-                      {followLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                          {isFollowing ? 'Unfollowing...' : 'Following...'}
-                        </>
-                      ) : (
-                        <>
-                          {isFollowing ? (
-                            <UserCheck className='h-4 w-4 mr-2' />
+                    <>
+                      {clerkUser ? (
+                        <Button
+                          onClick={handleFollow}
+                          size='sm'
+                          disabled={followLoading}
+                          variant={isFollowing ? 'outline' : 'default'}
+                        >
+                          {followLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                              {isFollowing ? 'Unfollowing...' : 'Following...'}
+                            </>
                           ) : (
-                            <UserPlus className='h-4 w-4 mr-2' />
+                            <>
+                              {isFollowing ? (
+                                <UserCheck className='h-4 w-4 mr-2' />
+                              ) : (
+                                <UserPlus className='h-4 w-4 mr-2' />
+                              )}
+                              {isFollowing ? 'Following' : 'Follow'}
+                            </>
                           )}
-                          {isFollowing ? 'Following' : 'Follow'}
-                        </>
+                        </Button>
+                      ) : (
+                        <SignedOut>
+                          <SignInButton mode='modal'>
+                            <Button
+                              size='sm'
+                              variant='default'
+                            >
+                              <UserPlus className='h-4 w-4 mr-2' />
+                              Follow
+                            </Button>
+                          </SignInButton>
+                        </SignedOut>
                       )}
-                    </Button>
+                    </>
                   )}
-                  <Button variant='outline' onClick={handleMessage} size='sm'>
-                    <MessageCircle className='h-4 w-4 mr-2' />
-                    Message
-                  </Button>
+                  {clerkUser ? (
+                    <Button variant='outline' onClick={handleMessage} size='sm'>
+                      <MessageCircle className='h-4 w-4 mr-2' />
+                      Message
+                    </Button>
+                  ) : (
+                    <SignedOut>
+                      <SignInButton mode='modal'>
+                        <Button variant='outline' size='sm'>
+                          <MessageCircle className='h-4 w-4 mr-2' />
+                          Message
+                        </Button>
+                      </SignInButton>
+                    </SignedOut>
+                  )}
                 </div>
               )}
 
@@ -502,6 +553,27 @@ const PublicProfile = () => {
             </div>
           </>
         )}
+
+        {/* Follow/Unfollow Confirmation Dialog */}
+        <ConfirmationDialog
+          open={showConfirmation}
+          onClose={cancelConfirmation}
+          onConfirm={confirmFollowAction}
+          title={
+            confirmationAction === 'follow'
+              ? `Follow @${userData?.username}?`
+              : `Unfollow @${userData?.username}?`
+          }
+          description={
+            confirmationAction === 'follow'
+              ? `You will start following @${userData?.username} and see their activity in your feed.`
+              : `You will no longer see @${userData?.username}'s activity in your feed.`
+          }
+          confirmText={confirmationAction === 'follow' ? 'Follow' : 'Unfollow'}
+          cancelText="Cancel"
+          variant={confirmationAction === 'follow' ? 'default' : 'outline'}
+          loading={followLoading}
+        />
       </div>
     </div>
   )

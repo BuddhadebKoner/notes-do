@@ -147,10 +147,12 @@ export const profileAPI = {
   // Get public user profile by username
   getPublicProfile: async username => {
     try {
-      const config = await getAuthConfig()
+      // Public endpoint - no authentication required
       const response = await api.get(
         `${API_ENDPOINTS.PROFILE.PUBLIC_PROFILE}/${username}`,
-        config
+        {
+          skipAuth: true // Flag to skip authentication in interceptor
+        }
       )
       return response.data
     } catch (error) {
@@ -164,7 +166,7 @@ export const profileAPI = {
     { page = 1, limit = 12, sortBy = 'uploadDate', sortOrder = 'desc' } = {}
   ) => {
     try {
-      const config = await getAuthConfig()
+      // Public endpoint - no authentication required
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
@@ -173,7 +175,9 @@ export const profileAPI = {
       })
       const response = await api.get(
         `${API_ENDPOINTS.PROFILE.PUBLIC_USER_NOTES}/${username}/notes?${params}`,
-        config
+        {
+          skipAuth: true // Flag to skip authentication in interceptor
+        }
       )
       return response.data
     } catch (error) {
@@ -236,10 +240,12 @@ export const notesAPI = {
   // Get single note by ID
   getNoteById: async noteId => {
     try {
-      const config = await getAuthConfig()
+      // Note details can be public - authentication optional
       const response = await api.get(
         `${API_ENDPOINTS.NOTES.GET_NOTE}/${noteId}`,
-        config
+        {
+          skipAuth: true // Public endpoint, auth is optional
+        }
       )
       return response.data
     } catch (error) {
@@ -250,8 +256,6 @@ export const notesAPI = {
   // Get notes feed with pagination and filters - optimized for cards
   getNotesFeed: async (page = 1, limit = 12, filters = {}) => {
     try {
-      const config = await getAuthConfig()
-
       // Prepare query parameters, excluding 'all' values and empty strings
       const params = {
         page: parseInt(page) || 1,
@@ -267,7 +271,7 @@ export const notesAPI = {
 
       const response = await api.get(API_ENDPOINTS.NOTES.GET_FEED, {
         params,
-        ...config,
+        skipAuth: true // Public endpoint, auth is optional
       })
       return response.data
     } catch (error) {

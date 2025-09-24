@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import { useUser } from '@clerk/clerk-react'
 import { QUERY_KEYS } from './QueryKeys.js'
 import { authAPI, notesAPI } from '../../services/api.js'
 import { profileAPI } from '../../services/api.js'
@@ -86,6 +87,8 @@ export const useUploadNote = () => {
 // Query to get complete user profile with auto user creation
 export const useGetProfile = () => {
   const queryClient = useQueryClient()
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = !!clerkUser
 
   return useQuery({
     queryKey: QUERY_KEYS.GET_PROFILE,
@@ -127,6 +130,7 @@ export const useGetProfile = () => {
         throw error
       }
     },
+    enabled: isLoggedIn, // Only run query when user is logged in
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
     retry: (failureCount, error) => {

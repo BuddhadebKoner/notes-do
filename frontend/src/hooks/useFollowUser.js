@@ -13,6 +13,9 @@ import { useFollowUser, useUnfollowUser, useGetProfile } from '../lib/react-quer
  */
 export const useFollowUserLogic = (targetUser) => {
    const { user: clerkUser } = useUser()
+   const isLoggedIn = !!clerkUser
+
+   // This will now return undefined when not logged in due to enabled: isLoggedIn
    const { data: profileData } = useGetProfile()
 
    // Get mutations
@@ -23,7 +26,7 @@ export const useFollowUserLogic = (targetUser) => {
 
    // Determine if currently following
    const isFollowing = useMemo(() => {
-      if (!targetUser || !profileData?.user) return false
+      if (!targetUser || !profileData?.user || !isLoggedIn) return false
 
       // Check from target user's relationship data first (most reliable)
       if (targetUser.relationship?.isFollowing !== undefined) {
@@ -31,22 +34,27 @@ export const useFollowUserLogic = (targetUser) => {
       }
 
       // Fallback: check current user's following list
-      const currentUserFollowing = profileData.user.activity?.following || []
-      return currentUserFollowing.some(user => user._id === targetUser.id || user.id === targetUser.id)
-   }, [targetUser, profileData])
+      if (profileData?.user?.activity?.following) {
+         const currentUserFollowing = profileData.user.activity.following || []
+         return currentUserFollowing.some(user => user._id === targetUser.id || user.id === targetUser.id)
+      }
+
+      return false
+   }, [targetUser, profileData, isLoggedIn])
 
    // Check if can follow (not own profile, user exists, etc.)
    const canFollow = useMemo(() => {
-      if (!clerkUser || !targetUser) return false
+      if (!isLoggedIn || !targetUser) return false
 
-      // Can't follow yourself
-      if (targetUser.username === profileData?.user?.username) return false
+      // Can't follow yourself - check against both clerk user and profile data
+      if (clerkUser?.username === targetUser.username) return false
+      if (profileData?.user?.username === targetUser.username) return false
 
       // Check privacy settings if available
       if (targetUser.privacy?.canFollow === false) return false
 
       return true
-   }, [clerkUser, targetUser, profileData])
+   }, [isLoggedIn, clerkUser, targetUser, profileData])
 
    // Handle follow action
    const handleFollow = async () => {
