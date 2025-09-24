@@ -29,14 +29,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select.jsx'
+import {
+  WEST_BENGAL_UNIVERSITIES,
+  WEST_BENGAL_CITIES,
+  ALL_DEPARTMENTS,
+  GRADUATION_YEARS,
+  INDIAN_STATES,
+  COUNTRIES,
+  DEGREE_TYPES,
+  GENDER_OPTIONS,
+  THEME_OPTIONS,
+  PROFILE_VISIBILITY_OPTIONS,
+} from '../../../constants/constantData.js'
 
 const Settings = () => {
-  const { data: profileData, isLoading: profileLoading } = useGetProfile()
+  const { data: profileData, isLoading: profileLoading, error: profileError } = useGetProfile()
   const { mutate: updateProfile, isLoading: updateLoading } = useUpdateProfile()
 
   const form = useForm({
     resolver: zodResolver(settingsFormSchema),
     defaultValues: defaultSettingsValues,
+    mode: 'onChange',
   })
 
   // Load current profile data into form
@@ -53,8 +66,8 @@ const Settings = () => {
 
         university: user.academic?.university || '',
         department: user.academic?.department || '',
-        currentSemester: user.academic?.currentSemester || '',
-        graduationYear: user.academic?.graduationYear || '',
+        currentSemester: user.academic?.currentSemester?.toString() || '',
+        graduationYear: user.academic?.graduationYear?.toString() || '',
         studentId: user.academic?.studentId || '',
         degree: user.academic?.degree || 'bachelor',
 
@@ -62,8 +75,8 @@ const Settings = () => {
         address: {
           street: user.contact?.address?.street || '',
           city: user.contact?.address?.city || '',
-          state: user.contact?.address?.state || '',
-          country: user.contact?.address?.country || '',
+          state: user.contact?.address?.state || 'West Bengal',
+          country: user.contact?.address?.country || 'India',
           zipCode: user.contact?.address?.zipCode || '',
         },
         socialLinks: {
@@ -78,18 +91,21 @@ const Settings = () => {
         emailNotifications: {
           newNotes: user.preferences?.emailNotifications?.newNotes ?? true,
           comments: user.preferences?.emailNotifications?.comments ?? true,
-          likes: user.preferences.emailNotifications?.likes ?? true,
+          likes: user.preferences?.emailNotifications?.likes ?? true,
           weeklyDigest:
-            user.preferences.emailNotifications?.weeklyDigest ?? false,
+            user.preferences?.emailNotifications?.weeklyDigest ?? false,
         },
         privacy: {
           profileVisibility:
-            user.preferences.privacy?.profileVisibility || 'university',
-          showEmail: user.preferences.privacy?.showEmail ?? false,
+            user.preferences?.privacy?.profileVisibility || 'university',
+          showEmail: user.preferences?.privacy?.showEmail ?? false,
         },
       }
 
-      form.reset(formValues)
+      // Use setTimeout to ensure form is properly initialized
+      setTimeout(() => {
+        form.reset(formValues)
+      }, 0)
     }
   }, [profileData, form])
 
@@ -167,11 +183,144 @@ const Settings = () => {
     return (
       <div className='space-y-6'>
         <div className='bg-white rounded-lg shadow-lg p-6'>
-          <div className='animate-pulse space-y-4'>
+          <div className='animate-pulse space-y-6'>
+            {/* Header */}
             <div className='h-8 bg-gray-200 rounded w-1/3'></div>
-            <div className='space-y-2'>
-              <div className='h-4 bg-gray-200 rounded'></div>
-              <div className='h-4 bg-gray-200 rounded w-3/4'></div>
+
+            {/* Profile Information Section */}
+            <div className='space-y-4'>
+              <div className='h-6 bg-gray-200 rounded w-1/4'></div>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div className='space-y-2'>
+                  <div className='h-4 bg-gray-200 rounded w-1/3'></div>
+                  <div className='h-20 bg-gray-200 rounded'></div>
+                </div>
+                <div className='space-y-2'>
+                  <div className='h-4 bg-gray-200 rounded w-1/3'></div>
+                  <div className='h-10 bg-gray-200 rounded'></div>
+                </div>
+                <div className='space-y-2'>
+                  <div className='h-4 bg-gray-200 rounded w-1/3'></div>
+                  <div className='h-10 bg-gray-200 rounded'></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Academic Section */}
+            <div className='space-y-4'>
+              <div className='h-6 bg-gray-200 rounded w-1/4'></div>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className='space-y-2'>
+                    <div className='h-4 bg-gray-200 rounded w-1/3'></div>
+                    <div className='h-10 bg-gray-200 rounded'></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact Section */}
+            <div className='space-y-4'>
+              <div className='h-6 bg-gray-200 rounded w-1/4'></div>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className='space-y-2'>
+                    <div className='h-4 bg-gray-200 rounded w-1/3'></div>
+                    <div className='h-10 bg-gray-200 rounded'></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className='border-t pt-6'>
+              <div className='flex justify-end'>
+                <div className='h-10 bg-gray-200 rounded w-32'></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (profileError) {
+    return (
+      <div className='space-y-6'>
+        <div className='bg-white rounded-lg shadow-lg p-6'>
+          <div className='text-center py-12'>
+            <div className='bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto'>
+              <div className='flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full'>
+                <svg
+                  className='w-6 h-6 text-red-600'
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                  />
+                </svg>
+              </div>
+              <h3 className='text-lg font-semibold text-red-800 mb-2'>
+                Failed to Load Profile
+              </h3>
+              <p className='text-sm text-red-600 mb-4'>
+                We couldn't load your profile information. Please try refreshing the page.
+              </p>
+              <Button
+                onClick={() => window.location.reload()}
+                variant='outline'
+                className='border-red-300 text-red-700 hover:bg-red-50'
+              >
+                Refresh Page
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // No data state
+  if (!profileData || !profileData.success) {
+    return (
+      <div className='space-y-6'>
+        <div className='bg-white rounded-lg shadow-lg p-6'>
+          <div className='text-center py-12'>
+            <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-md mx-auto'>
+              <div className='flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-yellow-100 rounded-full'>
+                <svg
+                  className='w-6 h-6 text-yellow-600'
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                  />
+                </svg>
+              </div>
+              <h3 className='text-lg font-semibold text-yellow-800 mb-2'>
+                Profile Not Found
+              </h3>
+              <p className='text-sm text-yellow-600 mb-4'>
+                Your profile data is not available. Please try again later.
+              </p>
+              <Button
+                onClick={() => window.location.reload()}
+                variant='outline'
+                className='border-yellow-300 text-yellow-700 hover:bg-yellow-50'
+              >
+                Try Again
+              </Button>
             </div>
           </div>
         </div>
@@ -255,7 +404,7 @@ const Settings = () => {
                       <FormLabel>Gender</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value || undefined}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -263,12 +412,11 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value='male'>Male</SelectItem>
-                          <SelectItem value='female'>Female</SelectItem>
-                          <SelectItem value='other'>Other</SelectItem>
-                          <SelectItem value='prefer-not-to-say'>
-                            Prefer not to say
-                          </SelectItem>
+                          {GENDER_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -290,9 +438,23 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>University</FormLabel>
-                      <FormControl>
-                        <Input placeholder='Your university name' {...field} />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select your university' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className='max-h-60'>
+                          {WEST_BENGAL_UNIVERSITIES.map((university) => (
+                            <SelectItem key={university} value={university}>
+                              {university}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -304,9 +466,23 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Department</FormLabel>
-                      <FormControl>
-                        <Input placeholder='Your department' {...field} />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select your department' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className='max-h-60'>
+                          {ALL_DEPARTMENTS.map((department) => (
+                            <SelectItem key={department} value={department}>
+                              {department}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -338,15 +514,23 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Graduation Year</FormLabel>
-                      <FormControl>
-                        <Input
-                          type='number'
-                          min='2020'
-                          max='2035'
-                          placeholder='YYYY'
-                          {...field}
-                        />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select graduation year' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className='max-h-60'>
+                          {GRADUATION_YEARS.map((year) => (
+                            <SelectItem key={year.value} value={year.value}>
+                              {year.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -374,7 +558,7 @@ const Settings = () => {
                       <FormLabel>Degree</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value || undefined}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -382,14 +566,11 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value='bachelor'>Bachelor</SelectItem>
-                          <SelectItem value='master'>Master</SelectItem>
-                          <SelectItem value='phd'>PhD</SelectItem>
-                          <SelectItem value='diploma'>Diploma</SelectItem>
-                          <SelectItem value='certificate'>
-                            Certificate
-                          </SelectItem>
-                          <SelectItem value='other'>Other</SelectItem>
+                          {DEGREE_TYPES.map((degree) => (
+                            <SelectItem key={degree.value} value={degree.value}>
+                              {degree.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -429,9 +610,23 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input placeholder='Your city' {...field} />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select your city' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className='max-h-60'>
+                          {WEST_BENGAL_CITIES.map((city) => (
+                            <SelectItem key={city} value={city}>
+                              {city}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -443,12 +638,27 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>State/Province</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder='Your state or province'
-                          {...field}
-                        />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select your state' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className='max-h-60'>
+                          {INDIAN_STATES.map((state) => (
+                            <SelectItem
+                              key={state.value}
+                              value={state.value}
+                              disabled={!state.enabled}
+                            >
+                              {state.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -460,9 +670,27 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Country</FormLabel>
-                      <FormControl>
-                        <Input placeholder='Your country' {...field} />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select your country' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className='max-h-60'>
+                          {COUNTRIES.map((country) => (
+                            <SelectItem
+                              key={country.value}
+                              value={country.value}
+                              disabled={!country.enabled}
+                            >
+                              {country.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -564,7 +792,7 @@ const Settings = () => {
                       <FormLabel>Theme</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value || undefined}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -572,9 +800,11 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value='light'>Light</SelectItem>
-                          <SelectItem value='dark'>Dark</SelectItem>
-                          <SelectItem value='auto'>Auto</SelectItem>
+                          {THEME_OPTIONS.map((theme) => (
+                            <SelectItem key={theme.value} value={theme.value}>
+                              {theme.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -590,7 +820,7 @@ const Settings = () => {
                       <FormLabel>Profile Visibility</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value || undefined}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -598,11 +828,11 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value='public'>Public</SelectItem>
-                          <SelectItem value='university'>
-                            University Only
-                          </SelectItem>
-                          <SelectItem value='private'>Private</SelectItem>
+                          {PROFILE_VISIBILITY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormDescription>
