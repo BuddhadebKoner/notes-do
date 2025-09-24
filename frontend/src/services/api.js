@@ -151,7 +151,7 @@ export const profileAPI = {
       const response = await api.get(
         `${API_ENDPOINTS.PROFILE.PUBLIC_PROFILE}/${username}`,
         {
-          skipAuth: true // Flag to skip authentication in interceptor
+          skipAuth: true, // Flag to skip authentication in interceptor
         }
       )
       return response.data
@@ -176,7 +176,7 @@ export const profileAPI = {
       const response = await api.get(
         `${API_ENDPOINTS.PROFILE.PUBLIC_USER_NOTES}/${username}/notes?${params}`,
         {
-          skipAuth: true // Flag to skip authentication in interceptor
+          skipAuth: true, // Flag to skip authentication in interceptor
         }
       )
       return response.data
@@ -244,7 +244,7 @@ export const notesAPI = {
       const response = await api.get(
         `${API_ENDPOINTS.NOTES.GET_NOTE}/${noteId}`,
         {
-          skipAuth: true // Public endpoint, auth is optional
+          skipAuth: true, // Public endpoint, auth is optional
         }
       )
       return response.data
@@ -271,7 +271,7 @@ export const notesAPI = {
 
       const response = await api.get(API_ENDPOINTS.NOTES.GET_FEED, {
         params,
-        skipAuth: true // Public endpoint, auth is optional
+        skipAuth: true, // Public endpoint, auth is optional
       })
       return response.data
     } catch (error) {

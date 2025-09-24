@@ -111,7 +111,7 @@ const ProfileOverview = () => {
                 Full Name
               </span>
               <span className='font-medium text-sm sm:text-base break-words'>
-                {user.profile.fullName}
+                {user.profile?.fullName}
               </span>
             </div>
             <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
@@ -133,7 +133,7 @@ const ProfileOverview = () => {
                 {user.email}
               </span>
             </div>
-            {user.profile.dateOfBirth && (
+            {user.profile?.dateOfBirth && (
               <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
                 <span className='text-muted-foreground text-sm sm:text-base'>
                   Date of Birth
@@ -143,13 +143,13 @@ const ProfileOverview = () => {
                 </span>
               </div>
             )}
-            {user.contact.phone && (
+            {user.contact?.phone && (
               <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
                 <span className='text-muted-foreground text-sm sm:text-base'>
                   Phone
                 </span>
                 <span className='font-medium text-sm sm:text-base'>
-                  {user.contact.phone}
+                  {user.contact?.phone}
                 </span>
               </div>
             )}
@@ -169,7 +169,7 @@ const ProfileOverview = () => {
                 University
               </span>
               <span className='font-medium text-sm sm:text-base break-words text-right'>
-                {user.academic.university || 'Not specified'}
+                {user.academic?.university || 'Not specified'}
               </span>
             </div>
             <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
@@ -177,7 +177,7 @@ const ProfileOverview = () => {
                 Department
               </span>
               <span className='font-medium text-sm sm:text-base break-words text-right'>
-                {user.academic.department || 'Not specified'}
+                {user.academic?.department || 'Not specified'}
               </span>
             </div>
             <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
@@ -188,36 +188,36 @@ const ProfileOverview = () => {
                 variant='outline'
                 className='capitalize self-start sm:self-center text-xs sm:text-sm'
               >
-                {user.academic.degree}
+                {user.academic?.degree}
               </Badge>
             </div>
-            {user.academic.currentSemester && (
+            {user.academic?.currentSemester && (
               <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
                 <span className='text-muted-foreground text-sm sm:text-base'>
                   Current Semester
                 </span>
                 <span className='font-medium text-sm sm:text-base'>
-                  {user.academic.currentSemester}
+                  {user.academic?.currentSemester}
                 </span>
               </div>
             )}
-            {user.academic.graduationYear && (
+            {user.academic?.graduationYear && (
               <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
                 <span className='text-muted-foreground text-sm sm:text-base'>
                   Graduation Year
                 </span>
                 <span className='font-medium text-sm sm:text-base'>
-                  {user.academic.graduationYear}
+                  {user.academic?.graduationYear}
                 </span>
               </div>
             )}
-            {user.academic.studentId && (
+            {user.academic?.studentId && (
               <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
                 <span className='text-muted-foreground text-sm sm:text-base'>
                   Student ID
                 </span>
                 <span className='font-medium text-sm sm:text-base'>
-                  {user.academic.studentId}
+                  {user.academic?.studentId}
                 </span>
               </div>
             )}

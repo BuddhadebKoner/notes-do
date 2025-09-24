@@ -45,39 +45,39 @@ const Settings = () => {
       const user = profileData.user
 
       const formValues = {
-        bio: user.profile.bio || '',
-        dateOfBirth: user.profile.dateOfBirth
+        bio: user.profile?.bio || '',
+        dateOfBirth: user.profile?.dateOfBirth
           ? new Date(user.profile.dateOfBirth).toISOString().split('T')[0]
           : '',
-        gender: user.profile.gender || 'prefer-not-to-say',
+        gender: user.profile?.gender || 'prefer-not-to-say',
 
-        university: user.academic.university || '',
-        department: user.academic.department || '',
-        currentSemester: user.academic.currentSemester || '',
-        graduationYear: user.academic.graduationYear || '',
-        studentId: user.academic.studentId || '',
-        degree: user.academic.degree || 'bachelor',
+        university: user.academic?.university || '',
+        department: user.academic?.department || '',
+        currentSemester: user.academic?.currentSemester || '',
+        graduationYear: user.academic?.graduationYear || '',
+        studentId: user.academic?.studentId || '',
+        degree: user.academic?.degree || 'bachelor',
 
-        phone: user.contact.phone || '',
+        phone: user.contact?.phone || '',
         address: {
-          street: user.contact.address?.street || '',
-          city: user.contact.address?.city || '',
-          state: user.contact.address?.state || '',
-          country: user.contact.address?.country || '',
-          zipCode: user.contact.address?.zipCode || '',
+          street: user.contact?.address?.street || '',
+          city: user.contact?.address?.city || '',
+          state: user.contact?.address?.state || '',
+          country: user.contact?.address?.country || '',
+          zipCode: user.contact?.address?.zipCode || '',
         },
         socialLinks: {
-          linkedin: user.contact.socialLinks?.linkedin || '',
-          github: user.contact.socialLinks?.github || '',
-          twitter: user.contact.socialLinks?.twitter || '',
-          website: user.contact.socialLinks?.website || '',
+          linkedin: user.contact?.socialLinks?.linkedin || '',
+          github: user.contact?.socialLinks?.github || '',
+          twitter: user.contact?.socialLinks?.twitter || '',
+          website: user.contact?.socialLinks?.website || '',
         },
 
-        theme: user.preferences.theme || 'auto',
-        language: user.preferences.language || 'en',
+        theme: user.preferences?.theme || 'auto',
+        language: user.preferences?.language || 'en',
         emailNotifications: {
-          newNotes: user.preferences.emailNotifications?.newNotes ?? true,
-          comments: user.preferences.emailNotifications?.comments ?? true,
+          newNotes: user.preferences?.emailNotifications?.newNotes ?? true,
+          comments: user.preferences?.emailNotifications?.comments ?? true,
           likes: user.preferences.emailNotifications?.likes ?? true,
           weeklyDigest:
             user.preferences.emailNotifications?.weeklyDigest ?? false,

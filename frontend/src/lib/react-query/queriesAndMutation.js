@@ -38,10 +38,21 @@ export const useCreateUser = () => {
 
   return useMutation({
     mutationKey: QUERY_KEYS.CREATE_USER,
-    mutationFn: authAPI.createUser,
+    mutationFn: async userData => {
+      console.log('🚀 Creating user profile with data:', userData)
+      return await authAPI.createUser(userData)
+    },
     onSuccess: data => {
       if (data.success) {
-        // Update user data in cache
+        // Directly set the profile data in cache instead of invalidating
+        queryClient.setQueryData(QUERY_KEYS.GET_PROFILE, {
+          success: true,
+          user: data.user,
+          message: data.message || 'User created successfully',
+          timestamp: new Date().toISOString(),
+        })
+
+        // Update user data in login cache
         queryClient.setQueryData(QUERY_KEYS.CHECK_LOGIN, {
           success: true,
           isLoggedIn: true,
@@ -93,58 +104,30 @@ export const useGetProfile = () => {
   return useQuery({
     queryKey: QUERY_KEYS.GET_PROFILE,
     queryFn: async () => {
-      try {
-        // First try to get the profile
-        return await profileAPI.getProfile()
-      } catch (error) {
-        // Check if error is "User not found in database"
-        if (
-          error.message?.includes('User not found in database') ||
-          error.message?.includes('Please create your profile first') ||
-          error.status === 404
-        ) {
-          console.log('User not found in database, creating user profile...')
-
-          try {
-            // Create user profile automatically
-            const createUserResult = await authAPI.createUser({})
-
-            if (createUserResult.success) {
-              console.log(
-                'User profile created successfully, fetching profile...'
-              )
-              // After successful creation, fetch the profile again
-              return await profileAPI.getProfile()
-            } else {
-              throw new Error(
-                createUserResult.message || 'Failed to create user profile'
-              )
-            }
-          } catch (createError) {
-            console.error('Failed to auto-create user:', createError)
-            throw createError
-          }
-        }
-
-        // Re-throw the error if it's not a "user not found" error
-        throw error
-      }
+      console.log('🔄 Fetching user profile...')
+      // Simply try to get the profile, let errors bubble up for manual handling
+      return await profileAPI.getProfile()
     },
     enabled: isLoggedIn, // Only run query when user is logged in
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false, // Prevent unnecessary refetches
+    refetchOnMount: true, // Only refetch on mount if data is stale
     retry: (failureCount, error) => {
-      // Don't retry if it's an auth error or user creation error
+      // Don't retry for user not found errors - we want to handle these manually
       if (
+        error.message?.includes('User not found in database') ||
+        error.message?.includes('Please create your profile first') ||
         error.message?.includes('authentication') ||
         error.message?.includes('create user') ||
         error.status === 401 ||
-        error.status === 403
+        error.status === 403 ||
+        error.status === 404
       ) {
         return false
       }
-      // Retry up to 2 times for other errors
-      return failureCount < 2
+      // Retry up to 1 time for other errors
+      return failureCount < 1
     },
   })
 }
@@ -354,46 +337,42 @@ export const useGetNotesFeed = (page = 1, limit = 12, filters = {}) => {
 export const useProfileWithAutoCreation = () => {
   const profileQuery = useGetProfile()
   const createUserMutation = useCreateUser()
+  const { user: clerkUser } = useUser()
 
+  const isLoggedIn = !!clerkUser
   const isCreatingUser = createUserMutation.isLoading
   const creationError = createUserMutation.error
   const wasUserJustCreated =
     createUserMutation.isSuccess && !createUserMutation.isLoading
+
+  // Only check for user creation need when:
+  // 1. User is logged in
+  // 2. Profile query has finished (not loading)
+  // 3. Profile query has an error
+  // 4. User is not currently being created
+  // 5. User hasn't just been created
+  const needsUserCreation =
+    isLoggedIn &&
+    !profileQuery.isLoading &&
+    !isCreatingUser &&
+    !wasUserJustCreated &&
+    profileQuery.error &&
+    (profileQuery.error.message?.includes('User profile not found') ||
+      profileQuery.error.message?.includes(
+        'Please create your profile first'
+      ) ||
+      profileQuery.error.message?.includes('User not found in database'))
 
   return {
     ...profileQuery,
     isCreatingUser,
     creationError,
     wasUserJustCreated,
+    needsUserCreation,
     isInitializing: profileQuery.isLoading || isCreatingUser,
     // Helper function to manually trigger user creation if needed
     createUserManually: createUserMutation.mutate,
   }
-
-  console.log('🔍 Query Key:', JSON.stringify(queryKey)) // Debug log
-
-  return useQuery({
-    queryKey,
-    queryFn: () => {
-      console.log('📡 API Call - getNotesFeed:', {
-        page,
-        limit,
-        filters: processedFilters,
-      }) // Debug log
-      return notesAPI.getNotesFeed(page, limit, processedFilters)
-    },
-    keepPreviousData: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 30 * 60 * 1000, // 30 minutes cache
-    retry: false, // Disable retry completely
-    retryOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchInterval: false,
-    enabled: true,
-    notifyOnChangeProps: ['data', 'isLoading', 'isError', 'error'], // Only notify on these prop changes
-  })
 }
 
 // ========== PROFILE MUTATIONS ==========
@@ -427,12 +406,16 @@ export const useFollowUser = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.FOLLOW_USER,
     mutationFn: profileAPI.followUser,
-    onMutate: async (username) => {
+    onMutate: async username => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username) })
+      await queryClient.cancelQueries({
+        queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+      })
 
       // Snapshot the previous value for rollback
-      const previousProfile = queryClient.getQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username))
+      const previousProfile = queryClient.getQueryData(
+        QUERY_KEYS.GET_PUBLIC_PROFILE(username)
+      )
 
       // Optimistically update the profile to show following state
       if (previousProfile?.user) {
@@ -442,9 +425,9 @@ export const useFollowUser = () => {
             ...previousProfile.user,
             relationship: {
               ...previousProfile.user.relationship,
-              isFollowing: true
-            }
-          }
+              isFollowing: true,
+            },
+          },
         })
       }
 
@@ -456,7 +439,7 @@ export const useFollowUser = () => {
         // Only invalidate the essential queries
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_FOLLOWING,
-          exact: true
+          exact: true,
         })
 
         console.log('User followed successfully:', data.message)
@@ -465,7 +448,10 @@ export const useFollowUser = () => {
     onError: (error, username, context) => {
       // Rollback on error
       if (context?.previousProfile) {
-        queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), context.previousProfile)
+        queryClient.setQueryData(
+          QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+          context.previousProfile
+        )
       }
       console.error('Follow user failed:', error)
     },
@@ -473,9 +459,9 @@ export const useFollowUser = () => {
       // Only refetch the public profile to ensure consistency
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
-        exact: true
+        exact: true,
       })
-    }
+    },
   })
 }
 
@@ -486,12 +472,16 @@ export const useUnfollowUser = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.UNFOLLOW_USER,
     mutationFn: profileAPI.unfollowUser,
-    onMutate: async (username) => {
+    onMutate: async username => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username) })
+      await queryClient.cancelQueries({
+        queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+      })
 
       // Snapshot the previous value for rollback
-      const previousProfile = queryClient.getQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username))
+      const previousProfile = queryClient.getQueryData(
+        QUERY_KEYS.GET_PUBLIC_PROFILE(username)
+      )
 
       // Optimistically update the profile to show unfollowing state
       if (previousProfile?.user) {
@@ -501,9 +491,9 @@ export const useUnfollowUser = () => {
             ...previousProfile.user,
             relationship: {
               ...previousProfile.user.relationship,
-              isFollowing: false
-            }
-          }
+              isFollowing: false,
+            },
+          },
         })
       }
 
@@ -515,7 +505,7 @@ export const useUnfollowUser = () => {
         // Only invalidate the essential queries
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_FOLLOWING,
-          exact: true
+          exact: true,
         })
 
         console.log('User unfollowed successfully:', data.message)
@@ -524,7 +514,10 @@ export const useUnfollowUser = () => {
     onError: (error, username, context) => {
       // Rollback on error
       if (context?.previousProfile) {
-        queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), context.previousProfile)
+        queryClient.setQueryData(
+          QUERY_KEYS.GET_PUBLIC_PROFILE(username),
+          context.previousProfile
+        )
       }
       console.error('Unfollow user failed:', error)
     },
@@ -532,8 +525,8 @@ export const useUnfollowUser = () => {
       // Only refetch the public profile to ensure consistency
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
-        exact: true
+        exact: true,
       })
-    }
+    },
   })
 }

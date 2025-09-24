@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import {
   SignedIn,
@@ -22,6 +22,7 @@ import {
   AvatarImage,
 } from '../../components/ui/avatar.jsx'
 import { Badge } from '../../components/ui/badge.jsx'
+import RoleSelectionDialog from '../../components/ui/role-selection-dialog.jsx'
 import ProfileOverview from './components/ProfileOverview'
 import UploadedNotes from './components/UploadedNotes'
 import Wishlist from './components/Wishlist'
@@ -44,6 +45,9 @@ const ProfilePage = () => {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // State for role selection dialog
+  const [showRoleDialog, setShowRoleDialog] = useState(false)
+
   // Automatically fetch profile data with user auto-creation when logged in
   const {
     data: profileData,
@@ -53,7 +57,37 @@ const ProfilePage = () => {
     creationError,
     isInitializing,
     wasUserJustCreated,
+    needsUserCreation,
+    createUserManually,
   } = useProfileWithAutoCreation()
+
+  // Show role dialog when user needs to be created
+  useEffect(() => {
+    if (
+      needsUserCreation &&
+      !showRoleDialog &&
+      !isCreatingUser &&
+      !wasUserJustCreated
+    ) {
+      console.log('Showing role selection dialog - user needs profile creation')
+      setShowRoleDialog(true)
+    }
+  }, [needsUserCreation, showRoleDialog, isCreatingUser, wasUserJustCreated])
+
+  // Hide dialog when user is successfully created
+  useEffect(() => {
+    if (wasUserJustCreated && showRoleDialog) {
+      console.log(
+        'Hiding role selection dialog - user profile created successfully'
+      )
+      setShowRoleDialog(false)
+    }
+  }, [wasUserJustCreated, showRoleDialog])
+
+  // Handle role selection
+  const handleRoleSelect = role => {
+    createUserManually({ role })
+  }
 
   // Set token when component mounts
   useEffect(() => {
@@ -373,6 +407,15 @@ const ProfilePage = () => {
           </Card>
         </div>
       </SignedOut>
+
+      {/* Role Selection Dialog */}
+      <RoleSelectionDialog
+        open={showRoleDialog}
+        onOpenChange={setShowRoleDialog}
+        onRoleSelect={handleRoleSelect}
+        isLoading={isCreatingUser}
+        error={creationError}
+      />
     </div>
   )
 }

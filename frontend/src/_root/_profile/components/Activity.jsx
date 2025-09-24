@@ -64,7 +64,7 @@ const Activity = () => {
           </Badge>
           {user.academic?.university && (
             <p className='text-xs text-muted-foreground'>
-              {user.academic.university} • {user.academic.department}
+              {user.academic?.university} • {user.academic?.department}
             </p>
           )}
         </div>

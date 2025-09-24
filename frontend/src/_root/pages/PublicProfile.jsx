@@ -66,14 +66,18 @@ const PublicProfile = () => {
     canFollow: canFollowUser,
     isLoading: followLoading,
     toggleFollow,
-    error: followError
-  } = useFollowUserLogic(userData ? {
-    id: userData.id,
-    username: userData.username,
-    name: userData.profile?.fullName,
-    relationship: userData.relationship,
-    privacy: userData.privacy
-  } : null)
+    error: followError,
+  } = useFollowUserLogic(
+    userData
+      ? {
+          id: userData.id,
+          username: userData.username,
+          name: userData.profile?.fullName,
+          relationship: userData.relationship,
+          privacy: userData.privacy,
+        }
+      : null
+  )
 
   // Handle follow action with confirmation
   const handleFollow = async () => {
@@ -276,7 +280,7 @@ const PublicProfile = () => {
                         >
                           {followLoading ? (
                             <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                              <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2'></div>
                               {isFollowing ? 'Unfollowing...' : 'Following...'}
                             </>
                           ) : (
@@ -293,10 +297,7 @@ const PublicProfile = () => {
                       ) : (
                         <SignedOut>
                           <SignInButton mode='modal'>
-                            <Button
-                              size='sm'
-                              variant='default'
-                            >
+                            <Button size='sm' variant='default'>
                               <UserPlus className='h-4 w-4 mr-2' />
                               Follow
                             </Button>
@@ -570,7 +571,7 @@ const PublicProfile = () => {
               : `You will no longer see @${userData?.username}'s activity in your feed.`
           }
           confirmText={confirmationAction === 'follow' ? 'Follow' : 'Unfollow'}
-          cancelText="Cancel"
+          cancelText='Cancel'
           variant={confirmationAction === 'follow' ? 'default' : 'outline'}
           loading={followLoading}
         />

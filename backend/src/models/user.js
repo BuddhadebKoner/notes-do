@@ -60,17 +60,19 @@ const userSchema = new mongoose.Schema({
       }
    },
 
-   // Academic Information
+   // Academic Information - initially optional, can be completed later
    academic: {
       university: {
          type: String,
          trim: true,
-         maxlength: 100
+         maxlength: 100,
+         default: ''
       },
       department: {
          type: String,
          trim: true,
-         maxlength: 100
+         maxlength: 100,
+         default: ''
       },
       currentSemester: {
          type: Number,
@@ -83,12 +85,37 @@ const userSchema = new mongoose.Schema({
       studentId: {
          type: String,
          trim: true,
-         maxlength: 50
+         maxlength: 50,
+         default: ''
       },
       degree: {
          type: String,
          enum: ['bachelor', 'master', 'phd', 'diploma', 'certificate', 'other'],
          default: 'bachelor'
+      },
+      // Teacher specific fields - optional initially
+      teacherInfo: {
+         employeeId: {
+            type: String,
+            trim: true,
+            maxlength: 50,
+            default: ''
+         },
+         designation: {
+            type: String,
+            enum: ['assistant-professor', 'associate-professor', 'professor', 'lecturer', 'instructor', 'other']
+         },
+         experience: {
+            type: Number,
+            min: 0,
+            max: 50,
+            default: 0
+         },
+         specialization: [{
+            type: String,
+            trim: true,
+            maxlength: 100
+         }]
       }
    },
 
@@ -147,7 +174,7 @@ const userSchema = new mongoose.Schema({
          profileVisibility: {
             type: String,
             enum: ['public', 'university', 'private'],
-            default: 'university'
+            default: 'public'
          },
          showEmail: {
             type: Boolean,
@@ -205,7 +232,7 @@ const userSchema = new mongoose.Schema({
       role: {
          type: String,
          enum: ['student', 'teacher', 'admin', 'moderator'],
-         default: 'student'
+         required: true
       },
       lastLogin: {
          type: Date
