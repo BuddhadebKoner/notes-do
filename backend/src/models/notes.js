@@ -346,7 +346,7 @@ const noteSchema = new mongoose.Schema({
    // Access Control & Visibility
    visibility: {
       type: String,
-      enum: ['public', 'university', 'department', 'course', 'private'],
+      enum: ['public', 'university', 'department', 'private'],
       default: 'university',
       index: true
    },

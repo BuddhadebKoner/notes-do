@@ -43,7 +43,11 @@ import {
 } from '../../../constants/constantData.js'
 
 const Settings = () => {
-  const { data: profileData, isLoading: profileLoading, error: profileError } = useGetProfile()
+  const {
+    data: profileData,
+    isLoading: profileLoading,
+    error: profileError,
+  } = useGetProfile()
   const { mutate: updateProfile, isLoading: updateLoading } = useUpdateProfile()
 
   const form = useForm({
@@ -270,7 +274,8 @@ const Settings = () => {
                 Failed to Load Profile
               </h3>
               <p className='text-sm text-red-600 mb-4'>
-                We couldn't load your profile information. Please try refreshing the page.
+                We couldn't load your profile information. Please try refreshing
+                the page.
               </p>
               <Button
                 onClick={() => window.location.reload()}
@@ -412,7 +417,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {GENDER_OPTIONS.map((option) => (
+                          {GENDER_OPTIONS.map(option => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label}
                             </SelectItem>
@@ -448,7 +453,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className='max-h-60'>
-                          {WEST_BENGAL_UNIVERSITIES.map((university) => (
+                          {WEST_BENGAL_UNIVERSITIES.map(university => (
                             <SelectItem key={university} value={university}>
                               {university}
                             </SelectItem>
@@ -476,7 +481,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className='max-h-60'>
-                          {ALL_DEPARTMENTS.map((department) => (
+                          {ALL_DEPARTMENTS.map(department => (
                             <SelectItem key={department} value={department}>
                               {department}
                             </SelectItem>
@@ -524,7 +529,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className='max-h-60'>
-                          {GRADUATION_YEARS.map((year) => (
+                          {GRADUATION_YEARS.map(year => (
                             <SelectItem key={year.value} value={year.value}>
                               {year.label}
                             </SelectItem>
@@ -566,7 +571,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {DEGREE_TYPES.map((degree) => (
+                          {DEGREE_TYPES.map(degree => (
                             <SelectItem key={degree.value} value={degree.value}>
                               {degree.label}
                             </SelectItem>
@@ -620,7 +625,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className='max-h-60'>
-                          {WEST_BENGAL_CITIES.map((city) => (
+                          {WEST_BENGAL_CITIES.map(city => (
                             <SelectItem key={city} value={city}>
                               {city}
                             </SelectItem>
@@ -648,7 +653,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className='max-h-60'>
-                          {INDIAN_STATES.map((state) => (
+                          {INDIAN_STATES.map(state => (
                             <SelectItem
                               key={state.value}
                               value={state.value}
@@ -680,7 +685,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className='max-h-60'>
-                          {COUNTRIES.map((country) => (
+                          {COUNTRIES.map(country => (
                             <SelectItem
                               key={country.value}
                               value={country.value}
@@ -800,7 +805,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {THEME_OPTIONS.map((theme) => (
+                          {THEME_OPTIONS.map(theme => (
                             <SelectItem key={theme.value} value={theme.value}>
                               {theme.label}
                             </SelectItem>
@@ -828,7 +833,7 @@ const Settings = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {PROFILE_VISIBILITY_OPTIONS.map((option) => (
+                          {PROFILE_VISIBILITY_OPTIONS.map(option => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label}
                             </SelectItem>

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { QUERY_KEYS } from './QueryKeys.js'
-import { authAPI, notesAPI } from '../../services/api.js'
+import { authAPI, notesAPI, commentsAPI } from '../../services/api.js'
 import { profileAPI } from '../../services/api.js'
 
 // Mutation to check login status
@@ -354,19 +354,26 @@ export const useLikeNote = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.LIKE_NOTE,
     mutationFn: notesAPI.likeNote,
-    onMutate: async (noteId) => {
+    onMutate: async noteId => {
       // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({ queryKey: [...QUERY_KEYS.GET_NOTE, noteId] })
+      await queryClient.cancelQueries({
+        queryKey: [...QUERY_KEYS.GET_NOTE, noteId],
+      })
       await queryClient.cancelQueries({ queryKey: ['notes', 'feed'] })
 
       // Snapshot the previous values for rollback
-      const previousNoteDetails = queryClient.getQueryData([...QUERY_KEYS.GET_NOTE, noteId])
+      const previousNoteDetails = queryClient.getQueryData([
+        ...QUERY_KEYS.GET_NOTE,
+        noteId,
+      ])
       const previousFeedQueries = []
 
       // Get all feed queries
-      queryClient.getQueriesData({ queryKey: ['notes', 'feed'] }).forEach(([queryKey, data]) => {
-        previousFeedQueries.push({ queryKey, data })
-      })
+      queryClient
+        .getQueriesData({ queryKey: ['notes', 'feed'] })
+        .forEach(([queryKey, data]) => {
+          previousFeedQueries.push({ queryKey, data })
+        })
 
       // Optimistically update note details
       if (previousNoteDetails?.note) {
@@ -377,9 +384,9 @@ export const useLikeNote = () => {
             social: {
               ...previousNoteDetails.note.social,
               likes: (previousNoteDetails.note.social.likes || 0) + 1,
-              isLiked: true
-            }
-          }
+              isLiked: true,
+            },
+          },
         })
       }
 
@@ -391,15 +398,15 @@ export const useLikeNote = () => {
             notes: oldData.notes.map(note =>
               note._id === noteId
                 ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: (note.stats.likes || 0) + 1,
-                    isLiked: true
+                    ...note,
+                    stats: {
+                      ...note.stats,
+                      likes: (note.stats.likes || 0) + 1,
+                      isLiked: true,
+                    },
                   }
-                }
                 : note
-            )
+            ),
           }
         }
         return oldData
@@ -419,9 +426,9 @@ export const useLikeNote = () => {
               social: {
                 ...oldData.note.social,
                 likes: data.data.likesCount,
-                isLiked: true
-              }
-            }
+                isLiked: true,
+              },
+            },
           }
         }
         return oldData
@@ -435,70 +442,79 @@ export const useLikeNote = () => {
             notes: oldData.notes.map(note =>
               note._id === noteId
                 ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: data.data.likesCount,
-                    isLiked: true
+                    ...note,
+                    stats: {
+                      ...note.stats,
+                      likes: data.data.likesCount,
+                      isLiked: true,
+                    },
                   }
-                }
                 : note
-            )
+            ),
           }
         }
         return oldData
       })
 
       // Update user's uploaded notes cache (for profile page)
-      queryClient.setQueriesData({ queryKey: QUERY_KEYS.GET_UPLOADED_NOTES() }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: data.data.likesCount,
-                    isLiked: true
-                  }
-                }
-                : note
-            )
+      queryClient.setQueriesData(
+        { queryKey: QUERY_KEYS.GET_UPLOADED_NOTES() },
+        oldData => {
+          if (oldData?.notes) {
+            return {
+              ...oldData,
+              notes: oldData.notes.map(note =>
+                note._id === noteId
+                  ? {
+                      ...note,
+                      stats: {
+                        ...note.stats,
+                        likes: data.data.likesCount,
+                        isLiked: true,
+                      },
+                    }
+                  : note
+              ),
+            }
           }
+          return oldData
         }
-        return oldData
-      })
+      )
 
       // Update public user notes cache
-      queryClient.setQueriesData({ queryKey: ['profile', 'public', 'notes'] }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: data.data.likesCount,
-                    isLiked: true
-                  }
-                }
-                : note
-            )
+      queryClient.setQueriesData(
+        { queryKey: ['profile', 'public', 'notes'] },
+        oldData => {
+          if (oldData?.notes) {
+            return {
+              ...oldData,
+              notes: oldData.notes.map(note =>
+                note._id === noteId
+                  ? {
+                      ...note,
+                      stats: {
+                        ...note.stats,
+                        likes: data.data.likesCount,
+                        isLiked: true,
+                      },
+                    }
+                  : note
+              ),
+            }
           }
+          return oldData
         }
-        return oldData
-      })
+      )
     },
     onError: (error, noteId, context) => {
       console.error('Error liking note:', error)
 
       // Rollback optimistic updates on error
       if (context?.previousNoteDetails) {
-        queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], context.previousNoteDetails)
+        queryClient.setQueryData(
+          [...QUERY_KEYS.GET_NOTE, noteId],
+          context.previousNoteDetails
+        )
       }
 
       // Rollback feed queries
@@ -518,19 +534,26 @@ export const useUnlikeNote = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.UNLIKE_NOTE,
     mutationFn: notesAPI.unlikeNote,
-    onMutate: async (noteId) => {
+    onMutate: async noteId => {
       // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({ queryKey: [...QUERY_KEYS.GET_NOTE, noteId] })
+      await queryClient.cancelQueries({
+        queryKey: [...QUERY_KEYS.GET_NOTE, noteId],
+      })
       await queryClient.cancelQueries({ queryKey: ['notes', 'feed'] })
 
       // Snapshot the previous values for rollback
-      const previousNoteDetails = queryClient.getQueryData([...QUERY_KEYS.GET_NOTE, noteId])
+      const previousNoteDetails = queryClient.getQueryData([
+        ...QUERY_KEYS.GET_NOTE,
+        noteId,
+      ])
       const previousFeedQueries = []
 
       // Get all feed queries
-      queryClient.getQueriesData({ queryKey: ['notes', 'feed'] }).forEach(([queryKey, data]) => {
-        previousFeedQueries.push({ queryKey, data })
-      })
+      queryClient
+        .getQueriesData({ queryKey: ['notes', 'feed'] })
+        .forEach(([queryKey, data]) => {
+          previousFeedQueries.push({ queryKey, data })
+        })
 
       // Optimistically update note details
       if (previousNoteDetails?.note) {
@@ -540,10 +563,13 @@ export const useUnlikeNote = () => {
             ...previousNoteDetails.note,
             social: {
               ...previousNoteDetails.note.social,
-              likes: Math.max((previousNoteDetails.note.social.likes || 0) - 1, 0),
-              isLiked: false
-            }
-          }
+              likes: Math.max(
+                (previousNoteDetails.note.social.likes || 0) - 1,
+                0
+              ),
+              isLiked: false,
+            },
+          },
         })
       }
 
@@ -555,15 +581,15 @@ export const useUnlikeNote = () => {
             notes: oldData.notes.map(note =>
               note._id === noteId
                 ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: Math.max((note.stats.likes || 0) - 1, 0),
-                    isLiked: false
+                    ...note,
+                    stats: {
+                      ...note.stats,
+                      likes: Math.max((note.stats.likes || 0) - 1, 0),
+                      isLiked: false,
+                    },
                   }
-                }
                 : note
-            )
+            ),
           }
         }
         return oldData
@@ -583,9 +609,9 @@ export const useUnlikeNote = () => {
               social: {
                 ...oldData.note.social,
                 likes: data.data.likesCount,
-                isLiked: false
-              }
-            }
+                isLiked: false,
+              },
+            },
           }
         }
         return oldData
@@ -599,75 +625,295 @@ export const useUnlikeNote = () => {
             notes: oldData.notes.map(note =>
               note._id === noteId
                 ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: data.data.likesCount,
-                    isLiked: false
+                    ...note,
+                    stats: {
+                      ...note.stats,
+                      likes: data.data.likesCount,
+                      isLiked: false,
+                    },
                   }
-                }
                 : note
-            )
+            ),
           }
         }
         return oldData
       })
 
       // Update user's uploaded notes cache (for profile page)
-      queryClient.setQueriesData({ queryKey: QUERY_KEYS.GET_UPLOADED_NOTES() }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: data.data.likesCount,
-                    isLiked: false
-                  }
-                }
-                : note
-            )
+      queryClient.setQueriesData(
+        { queryKey: QUERY_KEYS.GET_UPLOADED_NOTES() },
+        oldData => {
+          if (oldData?.notes) {
+            return {
+              ...oldData,
+              notes: oldData.notes.map(note =>
+                note._id === noteId
+                  ? {
+                      ...note,
+                      stats: {
+                        ...note.stats,
+                        likes: data.data.likesCount,
+                        isLiked: false,
+                      },
+                    }
+                  : note
+              ),
+            }
           }
+          return oldData
         }
-        return oldData
-      })
+      )
 
       // Update public user notes cache
-      queryClient.setQueriesData({ queryKey: ['profile', 'public', 'notes'] }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                  ...note,
-                  stats: {
-                    ...note.stats,
-                    likes: data.data.likesCount,
-                    isLiked: false
-                  }
-                }
-                : note
-            )
+      queryClient.setQueriesData(
+        { queryKey: ['profile', 'public', 'notes'] },
+        oldData => {
+          if (oldData?.notes) {
+            return {
+              ...oldData,
+              notes: oldData.notes.map(note =>
+                note._id === noteId
+                  ? {
+                      ...note,
+                      stats: {
+                        ...note.stats,
+                        likes: data.data.likesCount,
+                        isLiked: false,
+                      },
+                    }
+                  : note
+              ),
+            }
           }
+          return oldData
         }
-        return oldData
-      })
+      )
     },
     onError: (error, noteId, context) => {
       console.error('Error unliking note:', error)
 
       // Rollback optimistic updates on error
       if (context?.previousNoteDetails) {
-        queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], context.previousNoteDetails)
+        queryClient.setQueryData(
+          [...QUERY_KEYS.GET_NOTE, noteId],
+          context.previousNoteDetails
+        )
       }
 
       // Rollback feed queries
       if (context?.previousFeedQueries) {
         context.previousFeedQueries.forEach(({ queryKey, data }) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+  })
+}
+
+// ========== COMMENTS QUERIES ==========
+
+// Query to get comments for a note with pagination
+export const useGetComments = (noteId, page = 1, limit = 10) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_COMMENTS(noteId, page, limit),
+    queryFn: () => commentsAPI.getComments(noteId, page, limit),
+    enabled: !!noteId, // Only run query when noteId is available
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    keepPreviousData: true, // Keep previous data while fetching new page
+    retry: (failureCount, error) => {
+      // Don't retry for 404 or 403 errors
+      if (error.status === 404 || error.status === 403) {
+        return false
+      }
+      return failureCount < 2
+    },
+  })
+}
+
+// ========== COMMENTS MUTATIONS ==========
+
+// Mutation to add a new comment
+export const useAddComment = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.ADD_COMMENT,
+    mutationFn: ({ noteId, content }) =>
+      commentsAPI.addComment(noteId, content),
+    onMutate: async ({ noteId }) => {
+      // Cancel any outgoing refetches for comments
+      await queryClient.cancelQueries({
+        queryKey: ['comments', 'list', noteId],
+      })
+
+      // Snapshot the previous values for rollback
+      const previousComments = []
+      queryClient
+        .getQueriesData({
+          queryKey: ['comments', 'list', noteId],
+        })
+        .forEach(([queryKey, data]) => {
+          previousComments.push({ queryKey, data })
+        })
+
+      return { previousComments, noteId }
+    },
+    onSuccess: (data, { noteId }) => {
+      if (data.success) {
+        // Invalidate and refetch comments for the note
+        queryClient.invalidateQueries({
+          queryKey: ['comments', 'list', noteId],
+        })
+
+        // Update the note's comment count if cached
+        queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], oldData => {
+          if (oldData?.note) {
+            return {
+              ...oldData,
+              note: {
+                ...oldData.note,
+                social: {
+                  ...oldData.note.social,
+                  comments: (oldData.note.social.comments || 0) + 1,
+                },
+              },
+            }
+          }
+          return oldData
+        })
+      }
+    },
+    onError: (error, { noteId }, context) => {
+      console.error('Error adding comment:', error)
+
+      // Rollback optimistic updates on error
+      if (context?.previousComments) {
+        context.previousComments.forEach(({ queryKey, data }) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+  })
+}
+
+// Mutation to toggle comment like/unlike
+export const useToggleCommentLike = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.LIKE_COMMENT,
+    mutationFn: ({ noteId, commentId }) =>
+      commentsAPI.toggleCommentLike(noteId, commentId),
+    onMutate: async ({ noteId, commentId }) => {
+      // Cancel any outgoing refetches for comments
+      await queryClient.cancelQueries({
+        queryKey: ['comments', 'list', noteId],
+      })
+
+      // Snapshot the previous values for rollback
+      const previousComments = []
+      queryClient
+        .getQueriesData({
+          queryKey: ['comments', 'list', noteId],
+        })
+        .forEach(([queryKey, data]) => {
+          previousComments.push({ queryKey, data })
+        })
+
+      // Optimistically update comments
+      queryClient.setQueriesData(
+        {
+          queryKey: ['comments', 'list', noteId],
+        },
+        oldData => {
+          if (!oldData?.data?.comments) return oldData
+
+          return {
+            ...oldData,
+            data: {
+              ...oldData.data,
+              comments: oldData.data.comments.map(comment => {
+                if (comment.id === commentId) {
+                  return {
+                    ...comment,
+                    isLiked: !comment.isLiked,
+                    likes: comment.isLiked
+                      ? comment.likes - 1
+                      : comment.likes + 1,
+                  }
+                }
+                return comment
+              }),
+            },
+          }
+        }
+      )
+
+      return { previousComments, noteId, commentId }
+    },
+    onSuccess: (data, { noteId }) => {
+      // Data is already optimistically updated
+      // Just ensure consistency by refetching if needed
+      if (!data.success) {
+        queryClient.invalidateQueries({
+          queryKey: ['comments', 'list', noteId],
+        })
+      }
+    },
+    onError: (error, { noteId }, context) => {
+      console.error('Error toggling comment like:', error)
+
+      // Rollback optimistic updates on error
+      if (context?.previousComments) {
+        context.previousComments.forEach(({ queryKey, data }) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+  })
+}
+
+// Mutation to add a reply to a comment
+export const useAddReply = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.ADD_REPLY,
+    mutationFn: ({ noteId, commentId, content }) =>
+      commentsAPI.addReply(noteId, commentId, content),
+    onMutate: async ({ noteId }) => {
+      // Cancel any outgoing refetches for comments
+      await queryClient.cancelQueries({
+        queryKey: ['comments', 'list', noteId],
+      })
+
+      // Snapshot the previous values for rollback
+      const previousComments = []
+      queryClient
+        .getQueriesData({
+          queryKey: ['comments', 'list', noteId],
+        })
+        .forEach(([queryKey, data]) => {
+          previousComments.push({ queryKey, data })
+        })
+
+      return { previousComments, noteId }
+    },
+    onSuccess: (data, { noteId }) => {
+      if (data.success) {
+        // Invalidate and refetch comments for the note to show the new reply
+        queryClient.invalidateQueries({
+          queryKey: ['comments', 'list', noteId],
+        })
+      }
+    },
+    onError: (error, { noteId }, context) => {
+      console.error('Error adding reply:', error)
+
+      // Rollback optimistic updates on error
+      if (context?.previousComments) {
+        context.previousComments.forEach(({ queryKey, data }) => {
           queryClient.setQueryData(queryKey, data)
         })
       }

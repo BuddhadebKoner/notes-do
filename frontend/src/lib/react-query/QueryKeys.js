@@ -45,4 +45,16 @@ export const QUERY_KEYS = {
   GET_ACTIVITY_STATS: ['profile', 'activity-stats'],
   FOLLOW_USER: ['profile', 'follow'],
   UNFOLLOW_USER: ['profile', 'unfollow'],
+
+  // Comments related queries
+  GET_COMMENTS: (noteId, page, limit) => [
+    'comments',
+    'list',
+    noteId,
+    { page, limit },
+  ],
+  ADD_COMMENT: ['comments', 'add'],
+  LIKE_COMMENT: ['comments', 'like'],
+  UNLIKE_COMMENT: ['comments', 'unlike'],
+  ADD_REPLY: ['comments', 'reply'],
 }

@@ -34,6 +34,12 @@ export const API_ENDPOINTS = {
     DRIVE_AUTH: '/google/google-drive-auth',
     CALLBACK: '/google/callback',
   },
+  COMMENTS: {
+    GET_COMMENTS: '/comments',
+    ADD_COMMENT: '/comments',
+    LIKE_COMMENT: '/comments',
+    ADD_REPLY: '/comments',
+  },
 }
 
 // Global token refresh function reference

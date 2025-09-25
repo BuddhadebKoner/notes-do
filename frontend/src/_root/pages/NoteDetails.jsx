@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { useGetNoteById, useLikeNote, useUnlikeNote } from '../../lib/react-query/queriesAndMutation.js'
+import {
+  useGetNoteById,
+  useLikeNote,
+  useUnlikeNote,
+} from '../../lib/react-query/queriesAndMutation.js'
 import {
   Card,
   CardContent,
@@ -40,6 +44,7 @@ import {
   Users,
 } from 'lucide-react'
 import UnlikeConfirmationDialog from '../../components/ui/unlike-confirmation-dialog'
+import CommentSection from '../../components/notes/CommentSection.jsx'
 import { toast } from 'sonner'
 
 const NoteDetails = () => {
@@ -169,7 +174,8 @@ const NoteDetails = () => {
         toast.success('Note liked!')
       } catch (error) {
         console.error('Like error:', error)
-        const errorMessage = error?.message || error?.error || 'Failed to like note'
+        const errorMessage =
+          error?.message || error?.error || 'Failed to like note'
         toast.error(errorMessage)
       }
     }
@@ -182,7 +188,8 @@ const NoteDetails = () => {
       toast.success('Note unliked')
     } catch (error) {
       console.error('Unlike error:', error)
-      const errorMessage = error?.message || error?.error || 'Failed to unlike note'
+      const errorMessage =
+        error?.message || error?.error || 'Failed to unlike note'
       toast.error(errorMessage)
     }
   }
@@ -351,22 +358,25 @@ const NoteDetails = () => {
               <Button
                 variant={noteData.social?.isLiked ? 'default' : 'outline'}
                 onClick={handleLike}
-                disabled={likeNoteMutation.isLoading || unlikeNoteMutation.isLoading}
-                className={`${noteData.social?.isLiked
+                disabled={
+                  likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
+                }
+                className={`${
+                  noteData.social?.isLiked
                     ? 'bg-red-500 hover:bg-red-600 text-white'
                     : 'border-red-200 text-red-600 hover:bg-red-50'
-                  }`}
+                }`}
               >
                 <Heart
-                  className={`w-4 h-4 mr-2 ${noteData.social?.isLiked ? 'fill-current' : ''
-                    } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
+                  className={`w-4 h-4 mr-2 ${
+                    noteData.social?.isLiked ? 'fill-current' : ''
+                  } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
                 />
                 {likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
                   ? 'Processing...'
                   : noteData.social?.isLiked
                     ? 'Liked'
-                    : 'Like'
-                }
+                    : 'Like'}
               </Button>
             )}
 
@@ -376,7 +386,9 @@ const NoteDetails = () => {
                 onClick={handleDownload}
                 disabled={actionLoading.download}
               >
-                <Download className={`w-4 h-4 mr-2 ${actionLoading.download ? 'animate-pulse' : ''}`} />
+                <Download
+                  className={`w-4 h-4 mr-2 ${actionLoading.download ? 'animate-pulse' : ''}`}
+                />
                 {actionLoading.download ? 'Downloading...' : 'Download'}
               </Button>
             )}
@@ -523,91 +535,7 @@ const NoteDetails = () => {
             </Card>
 
             {/* Comments Section */}
-            {noteData.permissions.canComment && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className='flex items-center gap-2'>
-                    <MessageCircle className='w-5 h-5' />
-                    Comments ({noteData.comments?.length || 0})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {noteData.comments && noteData.comments.length > 0 ? (
-                    <div className='space-y-4'>
-                      {noteData.comments.map(comment => (
-                        <div
-                          key={comment._id}
-                          className='border-l-2 border-gray-200 pl-4'
-                        >
-                          <div className='flex items-start gap-3'>
-                            <Avatar className='w-8 h-8'>
-                              <AvatarImage src={comment.user.avatar} />
-                              <AvatarFallback>
-                                {getInitials(comment.user.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className='flex-1'>
-                              <div className='flex items-center gap-2 mb-1'>
-                                <span className='font-medium text-sm'>
-                                  {comment.user.name}
-                                </span>
-                                <span className='text-xs text-gray-500'>
-                                  {formatDate(comment.createdAt)}
-                                </span>
-                              </div>
-                              <p className='text-gray-700 text-sm'>
-                                {comment.content}
-                              </p>
-
-                              {/* Comment replies */}
-                              {comment.replies &&
-                                comment.replies.length > 0 && (
-                                  <div className='mt-3 ml-4 space-y-2'>
-                                    {comment.replies.map(reply => (
-                                      <div
-                                        key={reply._id}
-                                        className='flex items-start gap-2'
-                                      >
-                                        <Avatar className='w-6 h-6'>
-                                          <AvatarImage
-                                            src={reply.user.avatar}
-                                          />
-                                          <AvatarFallback className='text-xs'>
-                                            {getInitials(reply.user.name)}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                          <div className='flex items-center gap-2'>
-                                            <span className='font-medium text-xs'>
-                                              {reply.user.name}
-                                            </span>
-                                            <span className='text-xs text-gray-400'>
-                                              {formatDate(reply.createdAt)}
-                                            </span>
-                                          </div>
-                                          <p className='text-gray-600 text-xs'>
-                                            {reply.content}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className='text-center py-8 text-gray-500'>
-                      <MessageCircle className='w-12 h-12 mx-auto mb-2 text-gray-300' />
-                      <p>No comments yet</p>
-                      <p className='text-sm'>Be the first to comment!</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+            <CommentSection noteId={id} />
           </div>
 
           {/* Sidebar */}
@@ -765,8 +693,6 @@ const NoteDetails = () => {
                     <p className='text-xs text-gray-500'>Bookmarks</p>
                   </div>
                 </div>
-
-
               </CardContent>
             </Card>
 

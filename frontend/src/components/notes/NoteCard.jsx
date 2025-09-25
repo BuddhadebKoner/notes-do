@@ -5,7 +5,10 @@ import { Button } from '../ui/button'
 import { Download, Eye, Heart, FileText, User2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { useLikeNote, useUnlikeNote } from '../../lib/react-query/queriesAndMutation'
+import {
+  useLikeNote,
+  useUnlikeNote,
+} from '../../lib/react-query/queriesAndMutation'
 import UnlikeConfirmationDialog from '../ui/unlike-confirmation-dialog'
 import { toast } from 'sonner'
 
@@ -58,7 +61,7 @@ const NoteCard = ({ note, onView, onDownload }) => {
     }
   }
 
-  const handleLike = async (e) => {
+  const handleLike = async e => {
     e.stopPropagation()
 
     if (!isSignedIn) {
@@ -149,15 +152,19 @@ const NoteCard = ({ note, onView, onDownload }) => {
             </div>
             <button
               onClick={handleLike}
-              disabled={likeNoteMutation.isLoading || unlikeNoteMutation.isLoading}
-              className={`flex items-center gap-1 transition-colors duration-200 ${isLiked
+              disabled={
+                likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
+              }
+              className={`flex items-center gap-1 transition-colors duration-200 ${
+                isLiked
                   ? 'text-red-500 hover:text-red-600'
                   : 'text-gray-500 hover:text-red-500'
-                } ${!isSignedIn ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+              } ${!isSignedIn ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             >
               <Heart
-                className={`w-4 h-4 transition-all duration-200 ${isLiked ? 'fill-current' : ''
-                  } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
+                className={`w-4 h-4 transition-all duration-200 ${
+                  isLiked ? 'fill-current' : ''
+                } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
               />
               <span>{likesCount}</span>
             </button>

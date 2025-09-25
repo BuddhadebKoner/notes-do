@@ -735,19 +735,11 @@ export const getNoteById = async (req, res) => {
          });
       }
 
-      // Find note with all necessary populated fields
+      // Find note with necessary populated fields (excluding comments)
       const note = await Note.findById(id)
          .populate({
             path: 'uploader',
             select: 'profile.firstName profile.lastName profile.avatar username academic.university academic.department account.isVerified account.role'
-         })
-         .populate({
-            path: 'comments.user',
-            select: 'profile.firstName profile.lastName profile.avatar username'
-         })
-         .populate({
-            path: 'comments.replies.user',
-            select: 'profile.firstName profile.lastName profile.avatar username'
          })
          .populate({
             path: 'social.likes.user',
@@ -756,7 +748,8 @@ export const getNoteById = async (req, res) => {
          .populate({
             path: 'social.bookmarks.user',
             select: 'profile.firstName profile.lastName username'
-         });
+         })
+         .select('-comments'); // Exclude comments from the response
 
       if (!note) {
          return res.status(404).json({
@@ -773,10 +766,11 @@ export const getNoteById = async (req, res) => {
          });
       }
 
-      // Get current user ID if authenticated
+      // Get current user data if authenticated
       const currentUserId = req.user?.id || null;
+      const currentUser = req.user || null;
 
-      // Simplified access control - only public notes are accessible
+      // Visibility and access control logic
       let hasAccess = false;
       let canView = false;
       let canDownload = false;
@@ -784,26 +778,111 @@ export const getNoteById = async (req, res) => {
       let canLike = false;
       let isOwner = false;
 
-      // Only allow access to public notes
-      if (note.visibility === 'public') {
-         hasAccess = true;
-         canView = true;
-         canDownload = note.permissions.canDownload;
-         canComment = !!currentUserId; // Enable comments if authenticated
-         canLike = !!currentUserId; // Enable likes if authenticated
-         isOwner = currentUserId && note.uploader._id.toString() === currentUserId;
-      } else {
-         // Non-public notes are not accessible in this simplified version
+      // Check ownership
+      isOwner = currentUserId && note.uploader._id.toString() === currentUserId;
+
+      // Determine access based on visibility
+      switch (note.visibility) {
+         case 'public':
+            hasAccess = true;
+            canView = true;
+            canDownload = note.permissions.canDownload;
+            canComment = !!currentUserId; // Must be logged in to comment
+            canLike = !!currentUserId; // Must be logged in to like
+            break;
+
+         case 'university':
+            if (currentUser && currentUser.academic?.university) {
+               // Check if user belongs to the same university
+               if (currentUser.academic.university === note.academic.university) {
+                  hasAccess = true;
+                  canView = true;
+                  canDownload = note.permissions.canDownload;
+                  canComment = true; // Can comment if from same university
+                  canLike = true;
+               }
+            }
+            break;
+
+         case 'department':
+            if (currentUser && currentUser.academic?.university && currentUser.academic?.department) {
+               // Check if user belongs to the same university and department
+               if (currentUser.academic.university === note.academic.university &&
+                  currentUser.academic.department === note.academic.department) {
+                  hasAccess = true;
+                  canView = true;
+                  canDownload = note.permissions.canDownload;
+                  canComment = true; // Can comment if from same department
+                  canLike = true;
+               }
+            }
+            break;
+
+         case 'private':
+            // Only owner can access private notes
+            if (isOwner) {
+               hasAccess = true;
+               canView = true;
+               canDownload = note.permissions.canDownload;
+               canComment = false; // No comments on private notes
+               canLike = false; // No likes on private notes
+            }
+            break;
+
+         default:
+            hasAccess = false;
+      }
+
+      // If no access, return not found
+      if (!hasAccess) {
          return res.status(404).json({
             success: false,
             message: 'Note not found or not accessible'
          });
       }
 
-      // Build response based on access level
-      const baseResponse = {
+      // Increment view count if user has access
+      if (hasAccess) {
+         await Note.findByIdAndUpdate(id, { $inc: { 'social.views': 1 } });
+      }
+
+      // Build complete response
+      const noteResponse = {
          _id: note._id,
          title: note.title,
+         description: note.description,
+         tags: note.tags,
+         academic: note.academic,
+         subject: note.subject,
+         file: {
+            driveFileId: note.file.driveFileId,
+            driveFileName: note.file.driveFileName,
+            mimeType: note.file.mimeType,
+            size: note.file.size,
+            viewUrl: generateDriveUrls(note.file.driveFileId).viewUrl,
+            directViewUrl: generateDriveUrls(note.file.driveFileId).directViewUrl,
+            downloadUrl: canDownload ? generateDriveUrls(note.file.driveFileId).downloadUrl : null,
+            thumbnailUrl: note.file.thumbnailUrl || generateDriveUrls(note.file.driveFileId).thumbnailUrl,
+            pageCount: note.file.pageCount
+         },
+         content: {
+            language: note.content.language,
+            isHandwritten: note.content.isHandwritten,
+            hasImages: note.content.hasImages,
+            hasFormulas: note.content.hasFormulas,
+            keywords: note.content.keywords
+         },
+         social: {
+            likes: note.social.likes?.length || 0,
+            views: note.social.views || 0,
+            downloads: note.social.downloads || 0,
+            shares: note.social.shares || 0,
+            bookmarks: note.social.bookmarks?.length || 0,
+            rating: note.social.rating,
+            isLiked: currentUserId ? note.social.likes?.some(like => like.user._id.toString() === currentUserId) : false,
+            isBookmarked: currentUserId ? note.social.bookmarks?.some(bookmark => bookmark.user._id.toString() === currentUserId) : false,
+            commentsCount: 0 // Will be fetched separately if needed
+         },
          uploader: {
             _id: note.uploader._id,
             name: `${note.uploader.profile.firstName} ${note.uploader.profile.lastName}`.trim(),
@@ -821,57 +900,15 @@ export const getNoteById = async (req, res) => {
             canComment,
             canLike,
             isOwner
-         }
+         },
+         createdAt: note.createdAt,
+         updatedAt: note.updatedAt
       };
 
-      if (hasAccess) {
-         // Increment view count (simplified)
-         await Note.findByIdAndUpdate(id, { $inc: { 'social.views': 1 } });
-
-         const fullResponse = {
-            ...baseResponse,
-            description: note.description,
-            tags: note.tags,
-            academic: note.academic,
-            subject: note.subject,
-            file: {
-               driveFileId: note.file.driveFileId,
-               driveFileName: note.file.driveFileName,
-               mimeType: note.file.mimeType,
-               size: note.file.size,
-               viewUrl: generateDriveUrls(note.file.driveFileId).viewUrl,
-               directViewUrl: generateDriveUrls(note.file.driveFileId).directViewUrl,
-               downloadUrl: canDownload ? generateDriveUrls(note.file.driveFileId).downloadUrl : null,
-               thumbnailUrl: note.file.thumbnailUrl || generateDriveUrls(note.file.driveFileId).thumbnailUrl,
-               pageCount: note.file.pageCount
-            },
-            content: {
-               language: note.content.language,
-               isHandwritten: note.content.isHandwritten,
-               hasImages: note.content.hasImages,
-               hasFormulas: note.content.hasFormulas,
-               keywords: note.content.keywords
-            },
-            social: {
-               likes: note.social.likes?.length || 0,
-               views: note.social.views || 0,
-               downloads: note.social.downloads || 0,
-               shares: note.social.shares || 0,
-               bookmarks: note.social.bookmarks?.length || 0,
-               rating: note.social.rating,
-               isLiked: currentUserId ? note.social.likes?.some(like => like.user._id.toString() === currentUserId) : false,
-               isBookmarked: currentUserId ? note.social.bookmarks?.some(bookmark => bookmark.user._id.toString() === currentUserId) : false
-            },
-            comments: [], // Disabled for simplified version
-            createdAt: note.createdAt,
-            updatedAt: note.updatedAt
-         };
-
-         res.json({
-            success: true,
-            note: fullResponse
-         });
-      }
+      res.json({
+         success: true,
+         note: noteResponse
+      });
 
    } catch (error) {
       console.error('Get note by ID error:', error);

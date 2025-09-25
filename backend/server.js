@@ -17,6 +17,7 @@ import authRoutes from './src/routes/auth.js';
 import noteRoutes from './src/routes/notes.js';
 import googleRoutes from './src/routes/google.js';
 import profileRoutes from './src/routes/profile.js';
+import commentRoutes from './src/routes/comments.js';
 
 // Load environment variables
 dotenv.config();
@@ -142,7 +143,8 @@ app.get('/api', (req, res) => {
          auth: '/api/auth',
          notes: '/api/notes',
          profile: '/api/profile',
-         google: '/api/google'
+         google: '/api/google',
+         comments: '/api/comments'
       },
    });
 });
@@ -152,6 +154,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/google', googleRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/comments', commentRoutes);
 
 // Serve uploaded files (for development fallback)
 app.use('/uploads', express.static('uploads'));

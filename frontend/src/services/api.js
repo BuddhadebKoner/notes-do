@@ -374,9 +374,72 @@ export const apiHelpers = {
   },
 }
 
+// Comments API services
+export const commentsAPI = {
+  // Get comments for a note with pagination
+  getComments: async (noteId, page = 1, limit = 10) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.get(
+        `${API_ENDPOINTS.COMMENTS.GET_COMMENTS}/${noteId}?page=${page}&limit=${limit}`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw apiHelpers.handleError(error)
+    }
+  },
+
+  // Add a new comment to a note
+  addComment: async (noteId, content) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        `${API_ENDPOINTS.COMMENTS.ADD_COMMENT}/${noteId}`,
+        { content },
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw apiHelpers.handleError(error)
+    }
+  },
+
+  // Like/Unlike a comment
+  toggleCommentLike: async (noteId, commentId) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.put(
+        `${API_ENDPOINTS.COMMENTS.LIKE_COMMENT}/${noteId}/${commentId}/like`,
+        {},
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw apiHelpers.handleError(error)
+    }
+  },
+
+  // Add a reply to a comment
+  addReply: async (noteId, commentId, content) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        `${API_ENDPOINTS.COMMENTS.ADD_REPLY}/${noteId}/${commentId}/reply`,
+        { content },
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw apiHelpers.handleError(error)
+    }
+  },
+}
+
 export default {
   auth: authAPI,
   profile: profileAPI,
   notes: notesAPI,
+  comments: commentsAPI,
   helpers: apiHelpers,
 }
