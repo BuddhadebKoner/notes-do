@@ -4,6 +4,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { Button } from '../ui/button'
 import { Download, Eye, Heart, FileText, User2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
+import { useLikeNote, useUnlikeNote } from '../../lib/react-query/queriesAndMutation'
+import UnlikeConfirmationDialog from '../ui/unlike-confirmation-dialog'
+import { toast } from 'sonner'
 
 const NoteCard = ({ note, onView, onDownload }) => {
   const {
@@ -18,7 +22,15 @@ const NoteCard = ({ note, onView, onDownload }) => {
     uploader = {},
   } = note
 
-  const [isLiked, setIsLiked] = useState(false)
+  const { user: clerkUser, isSignedIn } = useUser()
+  const [showUnlikeDialog, setShowUnlikeDialog] = useState(false)
+
+  // React Query mutations
+  const likeNoteMutation = useLikeNote()
+  const unlikeNoteMutation = useUnlikeNote()
+
+  const isLiked = stats?.isLiked || false
+  const likesCount = stats?.likes || 0
 
   // Get PDF preview URL - prioritize stored thumbnailUrl, fallback to constructed URL
   const getPreviewUrl = () => {
@@ -46,9 +58,36 @@ const NoteCard = ({ note, onView, onDownload }) => {
     }
   }
 
-  const handleLike = e => {
+  const handleLike = async (e) => {
     e.stopPropagation()
-    setIsLiked(!isLiked)
+
+    if (!isSignedIn) {
+      toast.error('Please sign in to like notes')
+      return
+    }
+
+    if (isLiked) {
+      // Show confirmation dialog for unlike
+      setShowUnlikeDialog(true)
+    } else {
+      // Directly like the note
+      try {
+        await likeNoteMutation.mutateAsync(_id)
+        toast.success('Note liked!')
+      } catch (error) {
+        toast.error(error.message || 'Failed to like note')
+      }
+    }
+  }
+
+  const handleUnlike = async () => {
+    try {
+      await unlikeNoteMutation.mutateAsync(_id)
+      setShowUnlikeDialog(false)
+      toast.success('Note unliked')
+    } catch (error) {
+      toast.error(error.message || 'Failed to unlike note')
+    }
   }
 
   return (
@@ -108,10 +147,20 @@ const NoteCard = ({ note, onView, onDownload }) => {
               <Eye className='w-4 h-4' />
               <span>{stats.views || 0}</span>
             </div>
-            <div className='flex items-center gap-1'>
-              <Heart className='w-4 h-4' />
-              <span>{stats.likes || 0}</span>
-            </div>
+            <button
+              onClick={handleLike}
+              disabled={likeNoteMutation.isLoading || unlikeNoteMutation.isLoading}
+              className={`flex items-center gap-1 transition-colors duration-200 ${isLiked
+                  ? 'text-red-500 hover:text-red-600'
+                  : 'text-gray-500 hover:text-red-500'
+                } ${!isSignedIn ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            >
+              <Heart
+                className={`w-4 h-4 transition-all duration-200 ${isLiked ? 'fill-current' : ''
+                  } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
+              />
+              <span>{likesCount}</span>
+            </button>
           </div>
 
           {/* Download button */}
@@ -150,6 +199,15 @@ const NoteCard = ({ note, onView, onDownload }) => {
           </span>
         </Link>
       </CardContent>
+
+      {/* Unlike Confirmation Dialog */}
+      <UnlikeConfirmationDialog
+        isOpen={showUnlikeDialog}
+        onClose={() => setShowUnlikeDialog(false)}
+        onConfirm={handleUnlike}
+        isLoading={unlikeNoteMutation.isLoading}
+        noteTitle={title}
+      />
     </Card>
   )
 }

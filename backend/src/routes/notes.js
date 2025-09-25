@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { requireAuth, requireUserInDB, optionalAuth } from '../middleware/auth.js';
-import { uploadNote, getNotesFeed, getNoteById, downloadNote } from '../controllers/notes.js';
+import { uploadNote, getNotesFeed, getNoteById, downloadNote, likeNote, unlikeNote } from '../controllers/notes.js';
 
 const router = express.Router();
 
@@ -32,14 +32,18 @@ router.post('/upload',
    uploadNote
 );
 
-// Get notes feed - optimized for cards display (public access)
-router.get('/feed', getNotesFeed);
+// Get notes feed - optimized for cards display (public access, optional auth for like status)
+router.get('/feed', optionalAuth, getNotesFeed);
 
-// Get single note by ID (public access for public notes)
-router.get('/:id', getNoteById);
+// Get single note by ID (public access for public notes, optional auth for like status and permissions)
+router.get('/:id', optionalAuth, getNoteById);
 
 // Download note file (public access for public notes)
 router.get('/:id/download', downloadNote);
+
+// Like/Unlike note (requires authentication)
+router.post('/:id/like', requireAuth, requireUserInDB, likeNote);
+router.delete('/:id/like', requireAuth, requireUserInDB, unlikeNote);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {

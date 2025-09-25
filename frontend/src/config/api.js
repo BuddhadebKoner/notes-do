@@ -12,6 +12,8 @@ export const API_ENDPOINTS = {
     GET_FEED: '/notes/feed',
     GET_NOTE: '/notes',
     DOWNLOAD: '/notes',
+    LIKE: '/notes',
+    UNLIKE: '/notes',
   },
   PROFILE: {
     GET_PROFILE: '/profile',

@@ -514,6 +514,9 @@ export const getNotesFeed = async (req, res) => {
          sortOrder = 'desc'
       } = req.query;
 
+      // Get current user ID if authenticated
+      const currentUserId = req.user?.id || null;
+
       // Pagination
       const pageNum = Math.max(1, parseInt(page));
       const limitNum = Math.min(Math.max(1, parseInt(limit)), 24); // Between 1-24 per page
@@ -591,6 +594,9 @@ export const getNotesFeed = async (req, res) => {
       pipeline.push({
          $addFields: {
             'social.likesCount': { $size: { $ifNull: ['$social.likes', []] } },
+            'social.isLikedByCurrentUser': currentUserId ? {
+               $in: [new mongoose.Types.ObjectId(currentUserId), { $ifNull: ['$social.likes.user', []] }]
+            } : false,
             uploaderName: {
                $cond: {
                   if: '$uploader',
@@ -622,6 +628,7 @@ export const getNotesFeed = async (req, res) => {
             thumbnailUrl: '$file.thumbnailUrl',
             'stats.views': '$social.views',
             'stats.likes': '$social.likesCount',
+            'stats.isLiked': '$social.isLikedByCurrentUser',
             'uploader.name': '$uploaderName',
             'uploader.avatar': '$uploader.profile.avatar',
             'uploader.username': '$uploader.username',
@@ -670,7 +677,8 @@ export const getNotesFeed = async (req, res) => {
          thumbnailUrl: note.thumbnailUrl,
          stats: {
             views: note.stats?.views || 0,
-            likes: note.stats?.likes || 0
+            likes: note.stats?.likes || 0,
+            isLiked: note.stats?.isLiked || false
          },
          uploader: {
             name: note.uploader?.name || 'Anonymous',
@@ -765,20 +773,25 @@ export const getNoteById = async (req, res) => {
          });
       }
 
+      // Get current user ID if authenticated
+      const currentUserId = req.user?.id || null;
+
       // Simplified access control - only public notes are accessible
       let hasAccess = false;
       let canView = false;
       let canDownload = false;
       let canComment = false;
       let canLike = false;
+      let isOwner = false;
 
       // Only allow access to public notes
       if (note.visibility === 'public') {
          hasAccess = true;
          canView = true;
          canDownload = note.permissions.canDownload;
-         canComment = false; // Disable comments for now since no auth
-         canLike = false; // Disable likes for now since no auth
+         canComment = !!currentUserId; // Enable comments if authenticated
+         canLike = !!currentUserId; // Enable likes if authenticated
+         isOwner = currentUserId && note.uploader._id.toString() === currentUserId;
       } else {
          // Non-public notes are not accessible in this simplified version
          return res.status(404).json({
@@ -807,7 +820,7 @@ export const getNoteById = async (req, res) => {
             canDownload,
             canComment,
             canLike,
-            isOwner: false
+            isOwner
          }
       };
 
@@ -845,7 +858,9 @@ export const getNoteById = async (req, res) => {
                downloads: note.social.downloads || 0,
                shares: note.social.shares || 0,
                bookmarks: note.social.bookmarks?.length || 0,
-               rating: note.social.rating
+               rating: note.social.rating,
+               isLiked: currentUserId ? note.social.likes?.some(like => like.user._id.toString() === currentUserId) : false,
+               isBookmarked: currentUserId ? note.social.bookmarks?.some(bookmark => bookmark.user._id.toString() === currentUserId) : false
             },
             comments: [], // Disabled for simplified version
             createdAt: note.createdAt,
@@ -963,6 +978,122 @@ export const cleanupLocalFiles = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to cleanup files',
+         error: error.message
+      });
+   }
+};
+
+// Like a note
+export const likeNote = async (req, res) => {
+   try {
+      const { id } = req.params;
+      const userId = req.user.id;
+
+      // Find the note
+      const note = await Note.findById(id);
+      if (!note) {
+         return res.status(404).json({
+            success: false,
+            message: 'Note not found'
+         });
+      }
+
+      // Check if user already liked the note
+      const isAlreadyLiked = note.social.likes.some(
+         like => like.user.toString() === userId
+      );
+
+      if (isAlreadyLiked) {
+         return res.status(400).json({
+            success: false,
+            message: 'You have already liked this note'
+         });
+      }
+
+      // Add like
+      note.social.likes.push({
+         user: userId,
+         createdAt: new Date()
+      });
+
+      await note.save();
+
+      // Update the note owner's totalLikesReceived count
+      await User.findByIdAndUpdate(
+         note.uploader,
+         { $inc: { 'activity.totalLikesReceived': 1 } }
+      );
+
+      res.status(200).json({
+         success: true,
+         message: 'Note liked successfully',
+         data: {
+            likesCount: note.social.likes.length,
+            isLiked: true
+         }
+      });
+
+   } catch (error) {
+      console.error('Error liking note:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to like note',
+         error: error.message
+      });
+   }
+};
+
+// Unlike a note
+export const unlikeNote = async (req, res) => {
+   try {
+      const { id } = req.params;
+      const userId = req.user.id;
+
+      // Find the note
+      const note = await Note.findById(id);
+      if (!note) {
+         return res.status(404).json({
+            success: false,
+            message: 'Note not found'
+         });
+      }
+
+      // Check if user has liked the note
+      const likeIndex = note.social.likes.findIndex(
+         like => like.user.toString() === userId
+      );
+
+      if (likeIndex === -1) {
+         return res.status(400).json({
+            success: false,
+            message: 'You have not liked this note'
+         });
+      }
+
+      // Remove like
+      note.social.likes.splice(likeIndex, 1);
+      await note.save();
+
+      // Update the note owner's totalLikesReceived count (decrease)
+      await User.findByIdAndUpdate(
+         note.uploader,
+         { $inc: { 'activity.totalLikesReceived': -1 } }
+      );
+
+      res.status(200).json({
+         success: true,
+         message: 'Note unliked successfully',
+         data: {
+            likesCount: note.social.likes.length,
+            isLiked: false
+         }
+      });
+
+   } catch (error) {
+      console.error('Error unliking note:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to unlike note',
          error: error.message
       });
    }

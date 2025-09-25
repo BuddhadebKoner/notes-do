@@ -260,11 +260,11 @@ export const notesAPI = {
   // Get single note by ID
   getNoteById: async noteId => {
     try {
-      // Note details can be public - authentication optional
+      // Note details can be public - authentication optional but needed for like status
       const response = await api.get(
         `${API_ENDPOINTS.NOTES.GET_NOTE}/${noteId}`,
         {
-          skipAuth: true, // Public endpoint, auth is optional
+          skipAuth: false, // Send auth if available to get like status and permissions
         }
       )
       return response.data
@@ -291,11 +291,40 @@ export const notesAPI = {
 
       const response = await api.get(API_ENDPOINTS.NOTES.GET_FEED, {
         params,
-        skipAuth: true, // Public endpoint, auth is optional
+        skipAuth: false, // Send auth if available to get like status
       })
       return response.data
     } catch (error) {
       console.error('getNotesFeed API error:', error) // Debug log
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Like a note
+  likeNote: async noteId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        `${API_ENDPOINTS.NOTES.LIKE}/${noteId}/like`,
+        {},
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Unlike a note
+  unlikeNote: async noteId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.delete(
+        `${API_ENDPOINTS.NOTES.UNLIKE}/${noteId}/like`,
+        config
+      )
+      return response.data
+    } catch (error) {
       throw error.response?.data || error.message
     }
   },

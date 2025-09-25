@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { useGetNoteById } from '../../lib/react-query/queriesAndMutation.js'
+import { useGetNoteById, useLikeNote, useUnlikeNote } from '../../lib/react-query/queriesAndMutation.js'
 import {
   Card,
   CardContent,
@@ -39,11 +39,13 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react'
+import UnlikeConfirmationDialog from '../../components/ui/unlike-confirmation-dialog'
+import { toast } from 'sonner'
 
 const NoteDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user: clerkUser } = useUser()
+  const { user: clerkUser, isSignedIn } = useUser()
 
   // Use TanStack Query for fetching note details
   const {
@@ -53,6 +55,10 @@ const NoteDetails = () => {
     error: queryError,
     refetch: refetchNoteDetails,
   } = useGetNoteById(id)
+
+  // React Query mutations
+  const likeNoteMutation = useLikeNote()
+  const unlikeNoteMutation = useUnlikeNote()
 
   // Extract note data from response
   const noteData = noteResponse?.note || null
@@ -64,6 +70,7 @@ const NoteDetails = () => {
 
   const [iframeError, setIframeError] = useState(false)
   const [iframeLoading, setIframeLoading] = useState(false)
+  const [showUnlikeDialog, setShowUnlikeDialog] = useState(false)
   const [actionLoading, setActionLoading] = useState({
     like: false,
     bookmark: false,
@@ -131,10 +138,52 @@ const NoteDetails = () => {
       // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(window.location.href)
-        // You could show a toast notification here
+        toast.success('Link copied to clipboard!')
       } catch (error) {
         console.error('Copy to clipboard failed:', error)
+        toast.error('Failed to copy link')
       }
+    }
+  }
+
+  const handleLike = async () => {
+    if (!isSignedIn) {
+      toast.error('Please sign in to like notes')
+      return
+    }
+
+    if (!noteData?.permissions?.canLike) {
+      toast.error('You cannot like this note')
+      return
+    }
+
+    const isCurrentlyLiked = noteData?.social?.isLiked || false
+
+    if (isCurrentlyLiked) {
+      // Show confirmation dialog for unlike
+      setShowUnlikeDialog(true)
+    } else {
+      // Directly like the note
+      try {
+        await likeNoteMutation.mutateAsync(id)
+        toast.success('Note liked!')
+      } catch (error) {
+        console.error('Like error:', error)
+        const errorMessage = error?.message || error?.error || 'Failed to like note'
+        toast.error(errorMessage)
+      }
+    }
+  }
+
+  const handleUnlike = async () => {
+    try {
+      await unlikeNoteMutation.mutateAsync(id)
+      setShowUnlikeDialog(false)
+      toast.success('Note unliked')
+    } catch (error) {
+      console.error('Unlike error:', error)
+      const errorMessage = error?.message || error?.error || 'Failed to unlike note'
+      toast.error(errorMessage)
     }
   }
 
@@ -297,15 +346,42 @@ const NoteDetails = () => {
 
           {/* Action buttons */}
           <div className='flex items-center gap-2'>
+            {/* Like button - only show if user can like */}
+            {noteData.permissions.canLike && isSignedIn && (
+              <Button
+                variant={noteData.social?.isLiked ? 'default' : 'outline'}
+                onClick={handleLike}
+                disabled={likeNoteMutation.isLoading || unlikeNoteMutation.isLoading}
+                className={`${noteData.social?.isLiked
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'border-red-200 text-red-600 hover:bg-red-50'
+                  }`}
+              >
+                <Heart
+                  className={`w-4 h-4 mr-2 ${noteData.social?.isLiked ? 'fill-current' : ''
+                    } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
+                />
+                {likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
+                  ? 'Processing...'
+                  : noteData.social?.isLiked
+                    ? 'Liked'
+                    : 'Like'
+                }
+              </Button>
+            )}
+
+            {/* Download button */}
             {noteData.permissions.canDownload && (
               <Button
                 onClick={handleDownload}
                 disabled={actionLoading.download}
               >
-                <Download className='w-4 h-4 mr-2' />
-                Download
+                <Download className={`w-4 h-4 mr-2 ${actionLoading.download ? 'animate-pulse' : ''}`} />
+                {actionLoading.download ? 'Downloading...' : 'Download'}
               </Button>
             )}
+
+            {/* Share button */}
             <Button variant='outline' onClick={handleShare}>
               <Share className='w-4 h-4 mr-2' />
               Share
@@ -690,37 +766,7 @@ const NoteDetails = () => {
                   </div>
                 </div>
 
-                {/* Interaction buttons */}
-                {noteData.permissions.canLike && clerkUser && (
-                  <div className='mt-4 pt-4 border-t'>
-                    <div className='grid grid-cols-2 gap-2'>
-                      <Button
-                        variant={
-                          noteData.userInteractions?.hasLiked
-                            ? 'default'
-                            : 'outline'
-                        }
-                        size='sm'
-                        disabled={actionLoading.like}
-                      >
-                        <Heart className='w-4 h-4 mr-1' />
-                        Like
-                      </Button>
-                      <Button
-                        variant={
-                          noteData.userInteractions?.hasBookmarked
-                            ? 'default'
-                            : 'outline'
-                        }
-                        size='sm'
-                        disabled={actionLoading.bookmark}
-                      >
-                        <Bookmark className='w-4 h-4 mr-1' />
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                )}
+
               </CardContent>
             </Card>
 
@@ -749,6 +795,15 @@ const NoteDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Unlike Confirmation Dialog */}
+      <UnlikeConfirmationDialog
+        isOpen={showUnlikeDialog}
+        onClose={() => setShowUnlikeDialog(false)}
+        onConfirm={handleUnlike}
+        isLoading={unlikeNoteMutation.isLoading}
+        noteTitle={noteData?.title || 'this note'}
+      />
     </div>
   )
 }

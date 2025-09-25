@@ -14,6 +14,8 @@ export const QUERY_KEYS = {
     { page, limit, ...filters },
   ],
   GET_NOTE: ['notes', 'detail'],
+  LIKE_NOTE: ['notes', 'like'],
+  UNLIKE_NOTE: ['notes', 'unlike'],
 
   // Profile related queries
   GET_PROFILE: ['profile', 'details'],
