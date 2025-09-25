@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # Node.js Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: notes-do-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env.docker
+    volumes:
+      # Mount uploads directory to persist files
+      - ./backend/uploads:/app/uploads
+      # Mount temp directory for PDF processing
+      - ./backend/src/temp:/app/src/temp
+    networks:
+      - notes-do-network
+    healthcheck:
+      test: [ "CMD", "node", "-e", "http.get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  notes-do-network:
+    driver: bridge
+
+volumes:
+  backend_uploads:
+  backend_temp:
