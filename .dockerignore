@@ -1,0 +1,61 @@
+# Root .dockerignore for production builds
+
+# Node modules
+**/node_modules
+**/.npm
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Environment files
+**/.env*
+!**/.env.example
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+**/docs/
+
+# IDE
+.vscode
+.idea
+**/*.swp
+**/*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+**/logs
+**/*.log
+
+# Cache
+**/.cache
+**/.parcel-cache
+
+# Coverage
+**/coverage
+
+# Testing
+**/test
+**/tests
+**/__tests__
+
+# Frontend build artifacts (not needed for backend)
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.nuxt/
+
+# Temporary files
+**/tmp/
+**/temp/
+
+# Docker files
+**/Dockerfile*
+**/docker-compose*
+**/.dockerignore

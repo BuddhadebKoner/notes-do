@@ -1,4 +1,5 @@
-# Production Dockerfile for Notes-Do Backend
+# Production Dockerfile for Notes-Do Backend (Root Context)
+# Use this when building from the root directory of the project
 FROM node:18-alpine
 
 # Install dumb-init for proper signal handling
@@ -10,16 +11,16 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY package.json ./
+# Copy package files from backend directory
+COPY backend/package.json ./
 
 # Install all dependencies first, then remove dev dependencies
 RUN npm install --no-audit --no-fund && \
    npm prune --production && \
    npm cache clean --force
 
-# Copy application code
-COPY . .
+# Copy backend application code
+COPY backend/ ./
 
 # Create necessary directories
 RUN mkdir -p uploads/thumbnails src/temp/pdf-processing
