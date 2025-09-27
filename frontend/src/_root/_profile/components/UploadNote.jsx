@@ -13,6 +13,14 @@ import {
   visibilityOptions,
 } from '../schemas/uploadNoteFormSchema.js'
 import {
+  WEST_BENGAL_UNIVERSITIES,
+  BACHELOR_DEPARTMENTS,
+  MASTER_DEPARTMENTS,
+  DEGREE_TYPES,
+  SEMESTER_OPTIONS,
+  GRADUATION_YEARS,
+} from '../../../constants/constantData.js'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -45,6 +53,7 @@ const UploadNote = () => {
   const [driveConnected, setDriveConnected] = useState(
     localStorage.getItem('googleDriveToken') !== null
   )
+  const [selectedDegreeType, setSelectedDegreeType] = useState('bachelor')
   const fileInputRef = useRef(null)
 
   const form = useForm({
@@ -52,7 +61,40 @@ const UploadNote = () => {
     defaultValues: defaultUploadValues,
   })
 
+  // Get departments based on selected degree type
+  const getDepartmentOptions = () => {
+    switch (selectedDegreeType) {
+      case 'bachelor':
+        return BACHELOR_DEPARTMENTS.map(dept => ({ value: dept, label: dept }))
+      case 'master':
+        return MASTER_DEPARTMENTS.map(dept => ({ value: dept, label: dept }))
+      default:
+        return [...BACHELOR_DEPARTMENTS, ...MASTER_DEPARTMENTS]
+          .sort()
+          .map(dept => ({ value: dept, label: dept }))
+    }
+  }
+
   const onSubmit = async values => {
+    // Check Google Drive connection first
+    if (!driveConnected) {
+      form.setError('root', {
+        message: 'Please connect to Google Drive before uploading notes.',
+      })
+      return
+    }
+
+    // Additional validation for department compatibility with degree type
+    if (values.department && selectedDegreeType) {
+      const validDepartments = getDepartmentOptions().map(dept => dept.value)
+      if (!validDepartments.includes(values.department)) {
+        form.setError('department', {
+          message: `Selected department is not available for ${selectedDegreeType} degree`,
+        })
+        return
+      }
+    }
+
     try {
       // Get Clerk token
       const token = await getToken()
@@ -72,6 +114,7 @@ const UploadNote = () => {
       // Add form data (convert tags array back to string)
       const formDataToSend = {
         ...values,
+        degreeType: selectedDegreeType, // Ensure degreeType is included
         tags: Array.isArray(values.tags) ? values.tags.join(', ') : values.tags,
       }
 
@@ -143,6 +186,29 @@ const UploadNote = () => {
           <div className='mb-6'>
             <GoogleDriveConnect onConnected={setDriveConnected} />
           </div>
+
+          {/* Connection Required Notice */}
+          {!driveConnected && (
+            <div className='mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg'>
+              <div className='flex items-start'>
+                <div className='flex-shrink-0'>
+                  <div className='w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center'>
+                    <span className='text-yellow-600 text-sm'>⚠️</span>
+                  </div>
+                </div>
+                <div className='ml-4'>
+                  <h3 className='text-lg font-medium text-yellow-800 mb-2'>
+                    Google Drive Connection Required
+                  </h3>
+                  <p className='text-sm text-yellow-700'>
+                    You must connect to Google Drive before uploading notes. All
+                    notes are stored in your Google Drive for easy access and
+                    backup.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-8'>
@@ -271,20 +337,57 @@ const UploadNote = () => {
                 <h3 className='text-lg font-semibold text-gray-900 mb-4'>
                   Academic Information
                 </h3>
-                <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
                   <FormField
                     control={form.control}
                     name='university'
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>University *</FormLabel>
-                        <FormControl>
-                          <Input placeholder='e.g., MIT' {...field} />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder='Select university' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {WEST_BENGAL_UNIVERSITIES.map(university => (
+                              <SelectItem key={university} value={university}>
+                                {university}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  <div className='lg:col-span-1'>
+                    <FormLabel>Degree Type *</FormLabel>
+                    <Select
+                      onValueChange={value => {
+                        setSelectedDegreeType(value)
+                        // Reset department when degree type changes
+                        form.setValue('department', '')
+                      }}
+                      value={selectedDegreeType}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder='Select degree type' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEGREE_TYPES.map(degree => (
+                          <SelectItem key={degree.value} value={degree.value}>
+                            {degree.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   <FormField
                     control={form.control}
@@ -292,12 +395,30 @@ const UploadNote = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Department *</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder='e.g., Computer Science'
-                            {...field}
-                          />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder='Select department' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {getDepartmentOptions().map(department => (
+                              <SelectItem
+                                key={department.value}
+                                value={department.value}
+                              >
+                                {department.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {selectedDegreeType &&
+                            `Showing ${selectedDegreeType} departments`}
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -309,22 +430,57 @@ const UploadNote = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Semester *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type='number'
-                            min='1'
-                            max='12'
-                            placeholder='e.g., 5'
-                            {...field}
-                          />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder='Select semester' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SEMESTER_OPTIONS.map(semester => (
+                              <SelectItem
+                                key={semester.value}
+                                value={semester.value}
+                              >
+                                {semester.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormDescription>
-                          Semester number (1-12)
+                          Choose the semester for which these notes are relevant
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  <div className='lg:col-span-1'>
+                    <FormLabel>Graduation Year</FormLabel>
+                    <Select
+                      onValueChange={value =>
+                        form.setValue('graduationYear', value)
+                      }
+                      defaultValue={new Date().getFullYear().toString()}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder='Select graduation year' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GRADUATION_YEARS.map(year => (
+                          <SelectItem key={year.value} value={year.value}>
+                            {year.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className='text-xs'>
+                      Expected graduation year
+                    </FormDescription>
+                  </div>
                 </div>
               </div>
 
@@ -460,9 +616,18 @@ const UploadNote = () => {
               <div className='bg-gray-50 rounded-lg p-6 border-t'>
                 <div className='flex items-center justify-between'>
                   <div className='text-sm text-gray-500'>
-                    {form.formState.isDirty && !isUploading && (
-                      <span>Ready to upload</span>
+                    {!driveConnected && (
+                      <span className='text-yellow-600'>
+                        ⚠️ Google Drive not connected
+                      </span>
                     )}
+                    {driveConnected &&
+                      form.formState.isDirty &&
+                      !isUploading && (
+                        <span className='text-green-600'>
+                          ✓ Ready to upload
+                        </span>
+                      )}
                     {isUploading && <span>Uploading your note...</span>}
                   </div>
                   <div className='flex space-x-4'>
@@ -481,14 +646,23 @@ const UploadNote = () => {
                     </Button>
                     <Button
                       type='submit'
-                      disabled={isUploading || !form.watch('noteFile')}
+                      disabled={
+                        isUploading ||
+                        !form.watch('noteFile') ||
+                        !driveConnected
+                      }
                       className='min-w-32'
+                      title={
+                        !driveConnected ? 'Connect to Google Drive first' : ''
+                      }
                     >
                       {isUploading ? (
                         <div className='flex items-center space-x-2'>
                           <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
                           <span>Uploading...</span>
                         </div>
+                      ) : !driveConnected ? (
+                        'Connect Drive First'
                       ) : (
                         'Upload Note'
                       )}

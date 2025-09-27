@@ -8,6 +8,7 @@ export const QUERY_KEYS = {
 
   // Notes related queries
   UPLOAD_NOTE: ['notes', 'upload'],
+  UPDATE_NOTE: ['notes', 'update'],
   GET_NOTES_FEED: (page, limit, filters) => [
     'notes',
     'feed',
@@ -38,13 +39,31 @@ export const QUERY_KEYS = {
     'uploaded-notes',
     { page, limit, sortBy, sortOrder },
   ],
-  GET_WISHLIST: (page, limit) => ['profile', 'wishlist', { page, limit }],
+  GET_WISHLIST: (page, limit) => ['profile', 'wishlist', { page, limit }], // Legacy
   GET_FAVORITES: (page, limit) => ['profile', 'favorites', { page, limit }],
   GET_FOLLOWERS: ['profile', 'followers'],
   GET_FOLLOWING: ['profile', 'following'],
   GET_ACTIVITY_STATS: ['profile', 'activity-stats'],
   FOLLOW_USER: ['profile', 'follow'],
   UNFOLLOW_USER: ['profile', 'unfollow'],
+
+  // Wishlists related queries
+  CREATE_WISHLIST: ['wishlists', 'create'],
+  GET_USER_WISHLISTS: (includeNotes, page, limit) => [
+    'wishlists',
+    'user',
+    { includeNotes, page, limit },
+  ],
+  GET_WISHLIST_BY_ID: (wishlistId, page, limit) => [
+    'wishlists',
+    'detail',
+    wishlistId,
+    { page, limit },
+  ],
+  UPDATE_WISHLIST: ['wishlists', 'update'],
+  DELETE_WISHLIST: ['wishlists', 'delete'],
+  ADD_NOTES_TO_WISHLIST: ['wishlists', 'add-notes'],
+  REMOVE_NOTES_FROM_WISHLIST: ['wishlists', 'remove-notes'],
 
   // Comments related queries
   GET_COMMENTS: (noteId, page, limit) => [

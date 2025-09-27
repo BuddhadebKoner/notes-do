@@ -6,7 +6,13 @@ import RootLayout from './_root/RootLayout'
 import HomePage from './_root/pages/HomePage'
 import NotesFeedPage from './_root/pages/NotesFeedPage'
 import ComingSoon from './_root/pages/ComingSoon'
-import ProfilePage from './_root/_profile/ProfilePage'
+import ProfileLayout from './_root/_profile/ProfileLayout'
+import ProfileOverview from './_root/_profile/components/ProfileOverview'
+import UploadedNotes from './_root/_profile/components/UploadedNotes'
+import Favorites from './_root/_profile/components/Favorites'
+import Wishlist from './_root/_profile/components/Wishlist'
+import Activity from './_root/_profile/components/Activity'
+import Settings from './_root/_profile/components/Settings'
 import GoogleCallback from './components/google/GoogleCallback'
 import UploadNote from './_root/_profile/components/UploadNote'
 import NoteDetails from './_root/pages/NoteDetails'
@@ -21,7 +27,14 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path='notes' element={<NotesFeedPage />} />
             <Route path='buy-notes' element={<ComingSoon />} />
-            <Route path='profile/*' element={<ProfilePage />} />
+            <Route path='profile' element={<ProfileLayout />}>
+              <Route index element={<ProfileOverview />} />
+              <Route path='uploaded' element={<UploadedNotes />} />
+              <Route path='favorites' element={<Favorites />} />
+              <Route path='wishlist' element={<Wishlist />} />
+              <Route path='activity' element={<Activity />} />
+              <Route path='settings' element={<Settings />} />
+            </Route>
             <Route path='note/:id' element={<NoteDetails />} />
             <Route path='user/:username' element={<PublicProfile />} />
             <Route path='upload' element={<UploadNote />} />

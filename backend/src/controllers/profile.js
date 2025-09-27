@@ -128,24 +128,36 @@ export const getUserUploadedNotes = async (req, res) => {
          });
       }
 
-      const { page = 1, limit = 10, sortBy = 'uploadDate', sortOrder = 'desc' } = req.query;
+      const { page = 1, limit = 10, sortBy = 'uploadDate', sortOrder = 'desc' } = req.query; ``
 
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
       const notes = await Note.find({ uploader: req.user._id })
-         .select('title description tags academic subject file engagement uploadDate visibility.isPublic')
+         .select('title description subject academic tags visibility file.viewUrl uploadDate _id')
          .sort(sortOptions)
          .skip(skip)
          .limit(parseInt(limit))
          .lean();
+
+      // Transform notes to include graduationYear for frontend compatibility
+      const transformedNotes = notes.map(note => ({
+         ...note,
+         academic: {
+            ...note.academic,
+            // Extract graduation year from academicYear format "2020-2024" -> "2024"
+            graduationYear: note.academic?.academicYear
+               ? note.academic.academicYear.split('-')[1]
+               : undefined
+         }
+      }));
 
       const totalNotes = await Note.countDocuments({ uploader: req.user._id });
 
       res.status(200).json({
          success: true,
          data: {
-            notes,
+            notes: transformedNotes,
             pagination: {
                currentPage: parseInt(page),
                totalPages: Math.ceil(totalNotes / parseInt(limit)),
@@ -1250,6 +1262,165 @@ export const getPublicUserFollowers = async (req, res) => {
       res.status(500).json({
          success: false,
          message: 'Failed to fetch followers',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Update note details (excluding file)
+export const updateNoteDetails = async (req, res) => {
+   try {
+      // Check if user profile exists in our database
+      if (!req.user) {
+         return res.status(401).json({
+            success: false,
+            message: 'User not authenticated'
+         });
+      }
+
+      const { noteId } = req.params;
+
+      if (!noteId) {
+         return res.status(400).json({
+            success: false,
+            message: 'Note ID is required'
+         });
+      }
+
+      // Find the note and verify ownership
+      const note = await Note.findOne({
+         _id: noteId,
+         uploader: req.user._id
+      });
+
+      if (!note) {
+         return res.status(404).json({
+            success: false,
+            message: 'Note not found or you do not have permission to edit this note'
+         });
+      }
+
+      // Define allowed fields for update (excluding file-related fields)
+      const allowedFields = [
+         'title',
+         'description',
+         'subject.name',
+         'subject.category',
+         'subject.difficulty',
+         'academic.university',
+         'academic.department',
+         'academic.semester',
+         'academic.graduationYear',
+         'academic.degree',
+         'academic.academicYear',
+         'visibility',
+         'tags'
+      ];
+
+      const updates = {};
+
+      // Handle direct fields
+      ['title', 'description', 'tags'].forEach(field => {
+         if (req.body[field] !== undefined) {
+            updates[field] = req.body[field];
+         }
+      });
+
+      // Handle nested subject fields - use dot notation to preserve existing data
+      if (req.body.subject) updates['subject.name'] = req.body.subject;
+      if (req.body.category) updates['subject.category'] = req.body.category;
+      if (req.body.difficulty) updates['subject.difficulty'] = req.body.difficulty;
+
+      // Handle nested academic fields - preserve existing data and only update provided fields
+      const academicFields = ['university', 'department', 'semester', 'degree', 'academicYear'];
+      const hasAcademicUpdate = academicFields.some(field => req.body[field] !== undefined) || req.body.graduationYear !== undefined;
+
+      if (hasAcademicUpdate) {
+         // Use dot notation to update specific fields without overwriting the entire academic object
+         academicFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+               // Convert semester to number if it's a string
+               if (field === 'semester') {
+                  updates[`academic.${field}`] = parseInt(req.body[field]);
+               } else {
+                  updates[`academic.${field}`] = req.body[field];
+               }
+            }
+         });
+
+         // Handle graduationYear -> academicYear mapping
+         if (req.body.graduationYear !== undefined) {
+            // Map graduationYear to academicYear in the model
+            const gradYear = parseInt(req.body.graduationYear);
+            updates['academic.academicYear'] = `${gradYear - 4}-${gradYear}`;
+         }
+      }
+
+      // Handle course fields (preserve existing if provided)
+      if (req.body.courseCode) updates['academic.course.code'] = req.body.courseCode;
+      if (req.body.courseName) updates['academic.course.name'] = req.body.courseName;
+      if (req.body.courseCredits) updates['academic.course.credits'] = req.body.courseCredits;
+
+      // Handle tags - convert comma-separated string to array if it's a string
+      if (updates.tags && typeof updates.tags === 'string') {
+         updates.tags = updates.tags
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean);
+      }
+
+      // Handle visibility - it's a simple string field in the model
+      if (req.body.visibility) {
+         updates.visibility = req.body.visibility;
+      }
+
+      // Update the note
+      const updatedNote = await Note.findByIdAndUpdate(
+         noteId,
+         { $set: updates },
+         { new: true, runValidators: true }
+      ).select('title description subject academic tags visibility uploadDate _id');
+
+      if (!updatedNote) {
+         return res.status(404).json({
+            success: false,
+            message: 'Failed to update note'
+         });
+      }
+
+      // Transform the response to include graduationYear for frontend compatibility
+      const transformedNote = {
+         ...updatedNote.toObject(),
+         academic: {
+            ...updatedNote.academic,
+            // Extract graduation year from academicYear format "2020-2024" -> "2024"
+            graduationYear: updatedNote.academic?.academicYear
+               ? updatedNote.academic.academicYear.split('-')[1]
+               : undefined
+         }
+      };
+
+      res.status(200).json({
+         success: true,
+         message: 'Note updated successfully',
+         note: transformedNote
+      });
+
+   } catch (error) {
+      console.error('Update note details error:', error);
+
+      if (error.name === 'ValidationError') {
+         const errors = Object.values(error.errors).map(err => err.message);
+         return res.status(400).json({
+            success: false,
+            message: 'Validation error',
+            errors: errors
+         });
+      }
+
+      res.status(500).json({
+         success: false,
+         message: 'Failed to update note details',
          error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
    }

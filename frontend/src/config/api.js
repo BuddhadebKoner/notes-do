@@ -19,7 +19,7 @@ export const API_ENDPOINTS = {
     GET_PROFILE: '/profile',
     UPDATE_PROFILE: '/profile',
     UPLOADED_NOTES: '/profile/uploaded-notes',
-    WISHLIST: '/profile/wishlist',
+    WISHLIST: '/profile/wishlist', // Legacy wishlist endpoint
     FAVORITES: '/profile/favorites',
     FOLLOWERS: '/profile/followers',
     FOLLOWING: '/profile/following',
@@ -29,6 +29,15 @@ export const API_ENDPOINTS = {
     PUBLIC_USER_FOLLOWERS: '/profile/user',
     FOLLOW_USER: '/profile/follow',
     UNFOLLOW_USER: '/profile/follow',
+  },
+  WISHLISTS: {
+    CREATE: '/profile/wishlists',
+    GET_ALL: '/profile/wishlists',
+    GET_BY_ID: '/profile/wishlists',
+    UPDATE: '/profile/wishlists',
+    DELETE: '/profile/wishlists',
+    ADD_NOTES: '/profile/wishlists',
+    REMOVE_NOTES: '/profile/wishlists',
   },
   GOOGLE: {
     DRIVE_AUTH: '/google/google-drive-auth',

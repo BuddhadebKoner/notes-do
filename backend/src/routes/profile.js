@@ -12,8 +12,18 @@ import {
    getPublicUserNotes,
    getPublicUserFollowers,
    followUser,
-   unfollowUser
+   unfollowUser,
+   updateNoteDetails
 } from '../controllers/profile.js';
+import {
+   createWishlist,
+   getUserWishlists,
+   getWishlistById,
+   updateWishlist,
+   deleteWishlist,
+   addNotesToWishlist,
+   removeNotesFromWishlist
+} from '../controllers/wishlist.js';
 import { requireAuth, requireUserInDB, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -33,8 +43,17 @@ router.get('/', getUserProfile);
 // Get user's uploaded notes with pagination
 router.get('/uploaded-notes', getUserUploadedNotes);
 
-// Get user's wishlist with pagination
+// Legacy wishlist endpoint (kept for backward compatibility)
 router.get('/wishlist', getUserWishlist);
+
+// New multiple wishlists endpoints
+router.post('/wishlists', createWishlist);
+router.get('/wishlists', getUserWishlists);
+router.get('/wishlists/:wishlistId', getWishlistById);
+router.put('/wishlists/:wishlistId', updateWishlist);
+router.delete('/wishlists/:wishlistId', deleteWishlist);
+router.post('/wishlists/:wishlistId/notes', addNotesToWishlist);
+router.delete('/wishlists/:wishlistId/notes', removeNotesFromWishlist);
 
 // Get user's favorite notes with pagination
 router.get('/favorites', getUserFavorites);
@@ -50,6 +69,9 @@ router.get('/stats', getUserActivityStats);
 
 // Update user profile
 router.put('/', updateUserProfile);
+
+// Update note details (excluding file)
+router.put('/note/:noteId', updateNoteDetails);
 
 // Follow/Unfollow user routes
 router.post('/follow/:username', followUser);

@@ -193,9 +193,56 @@ const userSchema = new mongoose.Schema({
          type: mongoose.Schema.Types.ObjectId,
          ref: 'Note'
       }],
+      // Legacy wishlist field - kept for backward compatibility
       wishlistNotes: [{
          type: mongoose.Schema.Types.ObjectId,
          ref: 'Note'
+      }],
+      // New multiple wishlists feature
+      wishlists: [{
+         _id: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: () => new mongoose.Types.ObjectId()
+         },
+         name: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 100
+         },
+         description: {
+            type: String,
+            maxlength: 500,
+            trim: true
+         },
+         notes: [{
+            note: {
+               type: mongoose.Schema.Types.ObjectId,
+               ref: 'Note',
+               required: true
+            },
+            addedAt: {
+               type: Date,
+               default: Date.now
+            }
+         }],
+         isPrivate: {
+            type: Boolean,
+            default: false
+         },
+         color: {
+            type: String,
+            enum: ['blue', 'green', 'purple', 'red', 'orange', 'yellow', 'pink', 'gray'],
+            default: 'blue'
+         },
+         createdAt: {
+            type: Date,
+            default: Date.now
+         },
+         updatedAt: {
+            type: Date,
+            default: Date.now
+         }
       }],
       following: [{
          type: mongoose.Schema.Types.ObjectId,

@@ -52,7 +52,7 @@ const Navigation = () => {
               >
                 <Link to='/upload' className='flex items-center space-x-2'>
                   <Upload className='h-4 w-4' />
-                  <span className='font-semibold'>Upload Note</span>
+                  {/* <span className='font-semibold'>Upload Note</span> */}
                 </Link>
               </Button>
 

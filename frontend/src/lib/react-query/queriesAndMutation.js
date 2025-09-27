@@ -93,6 +93,153 @@ export const useUploadNote = () => {
   })
 }
 
+// Mutation to update note details
+export const useUpdateNoteDetails = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.UPDATE_NOTE,
+    mutationFn: ({ noteId, ...data }) =>
+      profileAPI.updateNoteDetails(noteId, data),
+    onMutate: async ({ noteId, ...data }) => {
+      // Cancel any outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({
+        queryKey: ['profile', 'uploaded-notes'],
+        exact: false,
+      })
+
+      // Snapshot all uploaded notes queries for rollback
+      const previousQueries = []
+      queryClient
+        .getQueriesData({
+          queryKey: ['profile', 'uploaded-notes'],
+        })
+        .forEach(([queryKey, data]) => {
+          previousQueries.push({ queryKey, data })
+        })
+
+      // Optimistically update all matching uploaded notes queries
+      queryClient.setQueriesData(
+        { queryKey: ['profile', 'uploaded-notes'] },
+        old => {
+          if (!old?.success || !old?.data?.notes) return old
+
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              notes: old.data.notes.map(note =>
+                note._id === noteId
+                  ? {
+                      ...note,
+                      // Only update fields that are actually provided
+                      ...(data.title && { title: data.title }),
+                      ...(data.description && {
+                        description: data.description,
+                      }),
+                      subject: {
+                        ...note.subject,
+                        ...(data.subject && { name: data.subject }),
+                        ...(data.category && { category: data.category }),
+                        ...(data.difficulty && { difficulty: data.difficulty }),
+                      },
+                      academic: {
+                        ...note.academic,
+                        ...(data.university && { university: data.university }),
+                        ...(data.department && { department: data.department }),
+                        ...(data.semester && {
+                          semester: parseInt(data.semester),
+                        }),
+                        ...(data.graduationYear && {
+                          graduationYear: parseInt(data.graduationYear),
+                        }),
+                        ...(data.degree && { degree: data.degree }),
+                      },
+                      ...(data.visibility && { visibility: data.visibility }),
+                      ...(data.tags && {
+                        tags:
+                          typeof data.tags === 'string'
+                            ? data.tags
+                                .split(',')
+                                .map(tag => tag.trim())
+                                .filter(Boolean)
+                            : data.tags,
+                      }),
+                    }
+                  : note
+              ),
+            },
+          }
+        }
+      )
+
+      return { previousQueries, noteId }
+    },
+    onSuccess: (data, variables) => {
+      if (data.success && data.note) {
+        // Update all uploaded notes queries with actual server response
+        queryClient.setQueriesData(
+          { queryKey: ['profile', 'uploaded-notes'] },
+          old => {
+            if (!old?.success || !old?.data?.notes) return old
+
+            return {
+              ...old,
+              data: {
+                ...old.data,
+                notes: old.data.notes.map(note =>
+                  note._id === variables.noteId
+                    ? { ...note, ...data.note }
+                    : note
+                ),
+              },
+            }
+          }
+        )
+
+        // Update individual note cache if it exists
+        queryClient.setQueryData(
+          [...QUERY_KEYS.GET_NOTE, variables.noteId],
+          old => {
+            if (!old?.success) return old
+            return {
+              ...old,
+              data: { ...old.data, ...data.note },
+            }
+          }
+        )
+
+        console.log('Note updated successfully:', data.message)
+      }
+    },
+    onError: (error, variables, context) => {
+      console.error('Note update failed:', error)
+
+      // Rollback all optimistic updates on error
+      if (context?.previousQueries) {
+        context.previousQueries.forEach(({ queryKey, data }) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+    onSettled: (data, error, variables) => {
+      // Always invalidate uploaded notes queries to ensure fresh data
+      queryClient.invalidateQueries({
+        queryKey: ['profile', 'uploaded-notes'],
+        exact: false,
+      })
+
+      // Also invalidate notes feed if update was successful
+      if (data?.success) {
+        queryClient.invalidateQueries({
+          queryKey: ['notes', 'feed'],
+          exact: false,
+        })
+      }
+    },
+  })
+}
+
 // ========== PROFILE QUERIES ==========
 
 // Query to get complete user profile with auto user creation
@@ -354,130 +501,50 @@ export const useLikeNote = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.LIKE_NOTE,
     mutationFn: notesAPI.likeNote,
-    onMutate: async noteId => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({
-        queryKey: [...QUERY_KEYS.GET_NOTE, noteId],
-      })
-      await queryClient.cancelQueries({ queryKey: ['notes', 'feed'] })
-
-      // Snapshot the previous values for rollback
-      const previousNoteDetails = queryClient.getQueryData([
-        ...QUERY_KEYS.GET_NOTE,
-        noteId,
-      ])
-      const previousFeedQueries = []
-
-      // Get all feed queries
-      queryClient
-        .getQueriesData({ queryKey: ['notes', 'feed'] })
-        .forEach(([queryKey, data]) => {
-          previousFeedQueries.push({ queryKey, data })
-        })
-
-      // Optimistically update note details
-      if (previousNoteDetails?.note) {
-        queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], {
-          ...previousNoteDetails,
+    onSuccess: (data, noteId) => {
+      // Update note details cache
+      queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], oldData => {
+        if (!oldData?.note) return oldData
+        return {
+          ...oldData,
           note: {
-            ...previousNoteDetails.note,
+            ...oldData.note,
             social: {
-              ...previousNoteDetails.note.social,
-              likes: (previousNoteDetails.note.social.likes || 0) + 1,
+              ...oldData.note.social,
+              likes: data.data.likesCount,
               isLiked: true,
             },
           },
-        })
-      }
+        }
+      })
 
-      // Optimistically update all notes feed queries
+      // Update all notes feed caches
+      const updateNoteLikes = notes =>
+        notes.map(note =>
+          note._id === noteId
+            ? {
+                ...note,
+                stats: {
+                  ...note.stats,
+                  likes: data.data.likesCount,
+                  isLiked: true,
+                },
+              }
+            : note
+        )
+
+      // Update notes feed
       queryClient.setQueriesData({ queryKey: ['notes', 'feed'] }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                    ...note,
-                    stats: {
-                      ...note.stats,
-                      likes: (note.stats.likes || 0) + 1,
-                      isLiked: true,
-                    },
-                  }
-                : note
-            ),
-          }
-        }
-        return oldData
+        if (!oldData?.notes) return oldData
+        return { ...oldData, notes: updateNoteLikes(oldData.notes) }
       })
 
-      // Return context for rollback
-      return { previousNoteDetails, previousFeedQueries, noteId }
-    },
-    onSuccess: (data, noteId) => {
-      // Update the specific note details cache
-      queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], oldData => {
-        if (oldData?.note) {
-          return {
-            ...oldData,
-            note: {
-              ...oldData.note,
-              social: {
-                ...oldData.note.social,
-                likes: data.data.likesCount,
-                isLiked: true,
-              },
-            },
-          }
-        }
-        return oldData
-      })
-
-      // Update all notes feed queries in cache (without refetching)
-      queryClient.setQueriesData({ queryKey: ['notes', 'feed'] }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                    ...note,
-                    stats: {
-                      ...note.stats,
-                      likes: data.data.likesCount,
-                      isLiked: true,
-                    },
-                  }
-                : note
-            ),
-          }
-        }
-        return oldData
-      })
-
-      // Update user's uploaded notes cache (for profile page)
+      // Update uploaded notes cache
       queryClient.setQueriesData(
         { queryKey: QUERY_KEYS.GET_UPLOADED_NOTES() },
         oldData => {
-          if (oldData?.notes) {
-            return {
-              ...oldData,
-              notes: oldData.notes.map(note =>
-                note._id === noteId
-                  ? {
-                      ...note,
-                      stats: {
-                        ...note.stats,
-                        likes: data.data.likesCount,
-                        isLiked: true,
-                      },
-                    }
-                  : note
-              ),
-            }
-          }
-          return oldData
+          if (!oldData?.notes) return oldData
+          return { ...oldData, notes: updateNoteLikes(oldData.notes) }
         }
       )
 
@@ -485,44 +552,13 @@ export const useLikeNote = () => {
       queryClient.setQueriesData(
         { queryKey: ['profile', 'public', 'notes'] },
         oldData => {
-          if (oldData?.notes) {
-            return {
-              ...oldData,
-              notes: oldData.notes.map(note =>
-                note._id === noteId
-                  ? {
-                      ...note,
-                      stats: {
-                        ...note.stats,
-                        likes: data.data.likesCount,
-                        isLiked: true,
-                      },
-                    }
-                  : note
-              ),
-            }
-          }
-          return oldData
+          if (!oldData?.notes) return oldData
+          return { ...oldData, notes: updateNoteLikes(oldData.notes) }
         }
       )
     },
-    onError: (error, noteId, context) => {
-      console.error('Error liking note:', error)
-
-      // Rollback optimistic updates on error
-      if (context?.previousNoteDetails) {
-        queryClient.setQueryData(
-          [...QUERY_KEYS.GET_NOTE, noteId],
-          context.previousNoteDetails
-        )
-      }
-
-      // Rollback feed queries
-      if (context?.previousFeedQueries) {
-        context.previousFeedQueries.forEach(({ queryKey, data }) => {
-          queryClient.setQueryData(queryKey, data)
-        })
-      }
+    onError: error => {
+      console.error('Failed to like note:', error)
     },
   })
 }
@@ -534,133 +570,50 @@ export const useUnlikeNote = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.UNLIKE_NOTE,
     mutationFn: notesAPI.unlikeNote,
-    onMutate: async noteId => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({
-        queryKey: [...QUERY_KEYS.GET_NOTE, noteId],
-      })
-      await queryClient.cancelQueries({ queryKey: ['notes', 'feed'] })
-
-      // Snapshot the previous values for rollback
-      const previousNoteDetails = queryClient.getQueryData([
-        ...QUERY_KEYS.GET_NOTE,
-        noteId,
-      ])
-      const previousFeedQueries = []
-
-      // Get all feed queries
-      queryClient
-        .getQueriesData({ queryKey: ['notes', 'feed'] })
-        .forEach(([queryKey, data]) => {
-          previousFeedQueries.push({ queryKey, data })
-        })
-
-      // Optimistically update note details
-      if (previousNoteDetails?.note) {
-        queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], {
-          ...previousNoteDetails,
+    onSuccess: (data, noteId) => {
+      // Update note details cache
+      queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], oldData => {
+        if (!oldData?.note) return oldData
+        return {
+          ...oldData,
           note: {
-            ...previousNoteDetails.note,
+            ...oldData.note,
             social: {
-              ...previousNoteDetails.note.social,
-              likes: Math.max(
-                (previousNoteDetails.note.social.likes || 0) - 1,
-                0
-              ),
+              ...oldData.note.social,
+              likes: data.data.likesCount,
               isLiked: false,
             },
           },
-        })
-      }
+        }
+      })
 
-      // Optimistically update all notes feed queries
+      // Update all notes feed caches
+      const updateNoteLikes = notes =>
+        notes.map(note =>
+          note._id === noteId
+            ? {
+                ...note,
+                stats: {
+                  ...note.stats,
+                  likes: data.data.likesCount,
+                  isLiked: false,
+                },
+              }
+            : note
+        )
+
+      // Update notes feed
       queryClient.setQueriesData({ queryKey: ['notes', 'feed'] }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                    ...note,
-                    stats: {
-                      ...note.stats,
-                      likes: Math.max((note.stats.likes || 0) - 1, 0),
-                      isLiked: false,
-                    },
-                  }
-                : note
-            ),
-          }
-        }
-        return oldData
+        if (!oldData?.notes) return oldData
+        return { ...oldData, notes: updateNoteLikes(oldData.notes) }
       })
 
-      // Return context for rollback
-      return { previousNoteDetails, previousFeedQueries, noteId }
-    },
-    onSuccess: (data, noteId) => {
-      // Update the specific note details cache
-      queryClient.setQueryData([...QUERY_KEYS.GET_NOTE, noteId], oldData => {
-        if (oldData?.note) {
-          return {
-            ...oldData,
-            note: {
-              ...oldData.note,
-              social: {
-                ...oldData.note.social,
-                likes: data.data.likesCount,
-                isLiked: false,
-              },
-            },
-          }
-        }
-        return oldData
-      })
-
-      // Update all notes feed queries in cache (without refetching)
-      queryClient.setQueriesData({ queryKey: ['notes', 'feed'] }, oldData => {
-        if (oldData?.notes) {
-          return {
-            ...oldData,
-            notes: oldData.notes.map(note =>
-              note._id === noteId
-                ? {
-                    ...note,
-                    stats: {
-                      ...note.stats,
-                      likes: data.data.likesCount,
-                      isLiked: false,
-                    },
-                  }
-                : note
-            ),
-          }
-        }
-        return oldData
-      })
-
-      // Update user's uploaded notes cache (for profile page)
+      // Update uploaded notes cache
       queryClient.setQueriesData(
         { queryKey: QUERY_KEYS.GET_UPLOADED_NOTES() },
         oldData => {
-          if (oldData?.notes) {
-            return {
-              ...oldData,
-              notes: oldData.notes.map(note =>
-                note._id === noteId
-                  ? {
-                      ...note,
-                      stats: {
-                        ...note.stats,
-                        likes: data.data.likesCount,
-                        isLiked: false,
-                      },
-                    }
-                  : note
-              ),
-            }
-          }
-          return oldData
+          if (!oldData?.notes) return oldData
+          return { ...oldData, notes: updateNoteLikes(oldData.notes) }
         }
       )
 
@@ -668,44 +621,13 @@ export const useUnlikeNote = () => {
       queryClient.setQueriesData(
         { queryKey: ['profile', 'public', 'notes'] },
         oldData => {
-          if (oldData?.notes) {
-            return {
-              ...oldData,
-              notes: oldData.notes.map(note =>
-                note._id === noteId
-                  ? {
-                      ...note,
-                      stats: {
-                        ...note.stats,
-                        likes: data.data.likesCount,
-                        isLiked: false,
-                      },
-                    }
-                  : note
-              ),
-            }
-          }
-          return oldData
+          if (!oldData?.notes) return oldData
+          return { ...oldData, notes: updateNoteLikes(oldData.notes) }
         }
       )
     },
-    onError: (error, noteId, context) => {
-      console.error('Error unliking note:', error)
-
-      // Rollback optimistic updates on error
-      if (context?.previousNoteDetails) {
-        queryClient.setQueryData(
-          [...QUERY_KEYS.GET_NOTE, noteId],
-          context.previousNoteDetails
-        )
-      }
-
-      // Rollback feed queries
-      if (context?.previousFeedQueries) {
-        context.previousFeedQueries.forEach(({ queryKey, data }) => {
-          queryClient.setQueryData(queryKey, data)
-        })
-      }
+    onError: error => {
+      console.error('Failed to unlike note:', error)
     },
   })
 }
@@ -1117,6 +1039,173 @@ export const useUnfollowUser = () => {
         queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
         exact: true,
       })
+    },
+  })
+}
+
+// =============================================================================
+// WISHLIST QUERIES AND MUTATIONS
+// =============================================================================
+
+import { wishlistAPI } from '../../services/wishlistAPI.js'
+
+// Query to get user's wishlists
+export const useGetUserWishlists = (
+  includeNotes = false,
+  page = 1,
+  limit = 10
+) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_USER_WISHLISTS(includeNotes, page, limit),
+    queryFn: () => wishlistAPI.getUserWishlists(includeNotes, page, limit),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+  })
+}
+
+// Query to get a specific wishlist by ID
+export const useGetWishlistById = (wishlistId, page = 1, limit = 20) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_WISHLIST_BY_ID(wishlistId, page, limit),
+    queryFn: () => wishlistAPI.getWishlistById(wishlistId, page, limit),
+    enabled: !!wishlistId,
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+  })
+}
+
+// Mutation to create a new wishlist
+export const useCreateWishlist = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.CREATE_WISHLIST,
+    mutationFn: wishlistAPI.createWishlist,
+    onSuccess: data => {
+      if (data.success) {
+        // Invalidate wishlists queries to refetch updated data
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'user'],
+        })
+
+        // Update profile cache to reflect new wishlist count
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_PROFILE,
+        })
+      }
+    },
+    onError: error => {
+      console.error('Create wishlist failed:', error)
+    },
+  })
+}
+
+// Mutation to update a wishlist
+export const useUpdateWishlist = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.UPDATE_WISHLIST,
+    mutationFn: ({ wishlistId, updateData }) =>
+      wishlistAPI.updateWishlist(wishlistId, updateData),
+    onSuccess: (data, variables) => {
+      if (data.success) {
+        // Invalidate related queries
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'user'],
+        })
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'detail', variables.wishlistId],
+        })
+      }
+    },
+    onError: error => {
+      console.error('Update wishlist failed:', error)
+    },
+  })
+}
+
+// Mutation to delete a wishlist
+export const useDeleteWishlist = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.DELETE_WISHLIST,
+    mutationFn: wishlistAPI.deleteWishlist,
+    onSuccess: (data, wishlistId) => {
+      if (data.success) {
+        // Remove from cache
+        queryClient.removeQueries({
+          queryKey: ['wishlists', 'detail', wishlistId],
+        })
+
+        // Invalidate wishlists list
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'user'],
+        })
+
+        // Update profile cache
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_PROFILE,
+        })
+      }
+    },
+    onError: error => {
+      console.error('Delete wishlist failed:', error)
+    },
+  })
+}
+
+// Mutation to add notes to wishlist
+export const useAddNotesToWishlist = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.ADD_NOTES_TO_WISHLIST,
+    mutationFn: ({ wishlistId, noteIds }) =>
+      wishlistAPI.addNotesToWishlist(wishlistId, noteIds),
+    onSuccess: (data, variables) => {
+      if (data.success) {
+        // Invalidate specific wishlist detail
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'detail', variables.wishlistId],
+        })
+
+        // Invalidate wishlists list if it includes notes
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'user'],
+        })
+      }
+    },
+    onError: error => {
+      console.error('Add notes to wishlist failed:', error)
+    },
+  })
+}
+
+// Mutation to remove notes from wishlist
+export const useRemoveNotesFromWishlist = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.REMOVE_NOTES_FROM_WISHLIST,
+    mutationFn: ({ wishlistId, noteIds }) =>
+      wishlistAPI.removeNotesFromWishlist(wishlistId, noteIds),
+    onSuccess: (data, variables) => {
+      if (data.success) {
+        // Invalidate specific wishlist detail
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'detail', variables.wishlistId],
+        })
+
+        // Invalidate wishlists list
+        queryClient.invalidateQueries({
+          queryKey: ['wishlists', 'user'],
+        })
+      }
+    },
+    onError: error => {
+      console.error('Remove notes from wishlist failed:', error)
     },
   })
 }

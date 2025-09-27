@@ -144,6 +144,21 @@ export const profileAPI = {
     }
   },
 
+  // Update note details (excluding file)
+  updateNoteDetails: async (noteId, noteData) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.put(
+        `/profile/note/${noteId}`,
+        noteData,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
   // Get public user profile by username
   getPublicProfile: async username => {
     try {

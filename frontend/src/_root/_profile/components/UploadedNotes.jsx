@@ -8,6 +8,7 @@ import {
 } from '../../../components/ui/card.jsx'
 import { Button } from '../../../components/ui/button.jsx'
 import { Badge } from '../../../components/ui/badge.jsx'
+import { Checkbox } from '../../../components/ui/checkbox.jsx'
 import {
   Select,
   SelectContent,
@@ -15,11 +16,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select.jsx'
+import { Edit, Share2, BarChart3, Eye, MoreVertical } from 'lucide-react'
+import EditNoteDialog from '../../../components/notes/EditNoteDialog.jsx'
+import ShareNoteDialog from '../../../components/notes/ShareNoteDialog.jsx'
+import AnalysisDialog from '../../../components/notes/AnalysisDialog.jsx'
 
 const UploadedNotes = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState('uploadDate')
   const [sortOrder, setSortOrder] = useState('desc')
+  const [selectedNotes, setSelectedNotes] = useState([])
+  const [editDialog, setEditDialog] = useState({ isOpen: false, note: null })
+  const [shareDialog, setShareDialog] = useState({ isOpen: false, note: null })
+  const [analysisDialog, setAnalysisDialog] = useState({
+    isOpen: false,
+    note: null,
+  })
   const limit = 10
 
   const { data, isLoading, error } = useGetUploadedNotes(
@@ -29,102 +41,121 @@ const UploadedNotes = () => {
     sortOrder
   )
 
-  const NoteCard = ({ note }) => (
-    <Card className='hover:shadow-lg transition-shadow'>
-      <CardContent className='p-6'>
-        <div className='flex items-start justify-between mb-4'>
-          <div>
-            <h3 className='text-lg font-semibold text-gray-900 mb-2'>
-              {note.title}
-            </h3>
-            <p className='text-muted-foreground text-sm line-clamp-2'>
-              {note.description}
-            </p>
-          </div>
-          <div className='flex items-center space-x-2'>
+  // Handle checkbox selection
+  const handleSelectNote = (noteId, isChecked) => {
+    if (isChecked) {
+      setSelectedNotes(prev => [...prev, noteId])
+    } else {
+      setSelectedNotes(prev => prev.filter(id => id !== noteId))
+    }
+  }
+
+  // Handle select all
+  const handleSelectAll = isChecked => {
+    if (isChecked && data?.success) {
+      setSelectedNotes(data.data.notes.map(note => note._id))
+    } else {
+      setSelectedNotes([])
+    }
+  }
+
+  // Handle dialog actions
+  const handleEdit = note => {
+    setEditDialog({ isOpen: true, note })
+  }
+
+  const handleShare = note => {
+    setShareDialog({ isOpen: true, note })
+  }
+
+  const handleAnalysis = note => {
+    setAnalysisDialog({ isOpen: true, note })
+  }
+
+  const NoteListItem = ({ note }) => {
+    const isSelected = selectedNotes.includes(note._id)
+
+    return (
+      <div
+        className={`flex items-center p-4 border-b hover:bg-muted/30 transition-colors ${isSelected ? 'bg-muted/50' : ''}`}
+      >
+        {/* Checkbox */}
+        <div className='mr-4'>
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={checked => handleSelectNote(note._id, checked)}
+          />
+        </div>
+
+        {/* Note Title */}
+        <div className='flex-1 min-w-0'>
+          <h3 className='text-sm font-medium text-gray-900 truncate'>
+            {note.title}
+          </h3>
+          <div className='flex items-center gap-3 mt-1'>
             <Badge
-              variant={note.visibility?.isPublic ? 'default' : 'secondary'}
+              variant={note.visibility === 'public' ? 'default' : 'secondary'}
+              className='text-xs'
             >
-              {note.visibility?.isPublic ? 'Public' : 'Private'}
+              {note.visibility === 'public' ? 'Public' : 'Private'}
             </Badge>
+            <span className='text-xs text-muted-foreground'>
+              {new Date(note.uploadDate).toLocaleDateString()}
+            </span>
           </div>
         </div>
 
-        <div className='space-y-2 mb-4'>
-          <div className='flex justify-between text-sm'>
-            <span className='text-muted-foreground'>Subject:</span>
-            <span className='font-medium'>{note.subject?.name}</span>
-          </div>
-          <div className='flex justify-between text-sm'>
-            <span className='text-muted-foreground'>Category:</span>
-            <Badge variant='outline' className='capitalize'>
-              {note.subject?.category?.replace('-', ' ')}
-            </Badge>
-          </div>
-          <div className='flex justify-between text-sm'>
-            <span className='text-muted-foreground'>University:</span>
-            <span className='font-medium'>{note.academic?.university}</span>
-          </div>
-          <div className='flex justify-between text-sm'>
-            <span className='text-muted-foreground'>Department:</span>
-            <span className='font-medium'>{note.academic?.department}</span>
-          </div>
+        {/* Action Buttons */}
+        <div className='flex items-center gap-2 ml-4'>
+          <Button
+            size='sm'
+            variant='ghost'
+            onClick={() => handleEdit(note)}
+            className='h-8 w-8 p-0'
+            title='Edit'
+          >
+            <Edit className='h-4 w-4' />
+          </Button>
+
+          <Button
+            size='sm'
+            variant='ghost'
+            onClick={() => handleShare(note)}
+            className='h-8 w-8 p-0'
+            title='Share'
+          >
+            <Share2 className='h-4 w-4' />
+          </Button>
+
+          <Button
+            size='sm'
+            variant='ghost'
+            asChild
+            className='h-8 w-8 p-0'
+            title='View'
+          >
+            <a
+              href={note.file?.viewUrl}
+              target='_blank'
+              rel='noopener noreferrer'
+            >
+              <Eye className='h-4 w-4' />
+            </a>
+          </Button>
+
+          <Button
+            size='sm'
+            variant='ghost'
+            onClick={() => handleAnalysis(note)}
+            className='h-8 w-8 p-0'
+            title='Analytics'
+          >
+            <BarChart3 className='h-4 w-4' />
+          </Button>
         </div>
-
-        {/* Engagement Stats */}
-        {note.engagement && (
-          <div className='flex justify-between items-center text-sm text-muted-foreground mb-4'>
-            <div className='flex space-x-4'>
-              <span>👁️ {note.engagement.views || 0} views</span>
-              <span>⬇️ {note.engagement.downloads || 0} downloads</span>
-              <span>❤️ {note.engagement.likes || 0} likes</span>
-            </div>
-            {note.engagement.rating && (
-              <div className='flex items-center'>
-                <span>
-                  ⭐ {note.engagement.rating.average?.toFixed(1) || '0.0'}
-                </span>
-                <span className='ml-1'>
-                  ({note.engagement.rating.count || 0})
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tags */}
-        {note.tags && note.tags.length > 0 && (
-          <div className='flex flex-wrap gap-2 mb-4'>
-            {note.tags.map((tag, index) => (
-              <Badge key={index} variant='secondary'>
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        <div className='flex justify-between items-center'>
-          <span className='text-sm text-muted-foreground'>
-            Uploaded: {new Date(note.uploadDate).toLocaleDateString()}
-          </span>
-          <div className='space-x-2'>
-            <Button size='sm' asChild>
-              <a
-                href={note.file?.viewUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                View
-              </a>
-            </Button>
-            <Button size='sm' variant='outline'>
-              Edit
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
+      </div>
+    )
+  }
 
   const Pagination = ({ pagination }) => {
     if (!pagination || pagination.totalPages <= 1) return null
@@ -185,7 +216,7 @@ const UploadedNotes = () => {
 
   return (
     <div className='space-y-6'>
-      {/* Header with Sort Controls */}
+      {/* Header with Controls */}
       <Card>
         <CardHeader>
           <div className='flex justify-between items-center'>
@@ -198,11 +229,6 @@ const UploadedNotes = () => {
                 <SelectContent>
                   <SelectItem value='uploadDate'>Upload Date</SelectItem>
                   <SelectItem value='title'>Title</SelectItem>
-                  <SelectItem value='engagement.downloads'>
-                    Downloads
-                  </SelectItem>
-                  <SelectItem value='engagement.views'>Views</SelectItem>
-                  <SelectItem value='engagement.likes'>Likes</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={sortOrder} onValueChange={setSortOrder}>
@@ -217,21 +243,65 @@ const UploadedNotes = () => {
             </div>
           </div>
           {data?.success && (
-            <p className='text-muted-foreground'>
-              {data.data.pagination.totalNotes} notes uploaded
-            </p>
+            <div className='flex justify-between items-center'>
+              <p className='text-muted-foreground'>
+                {data.data.pagination.totalNotes} notes uploaded
+                {selectedNotes.length > 0 && (
+                  <span className='ml-2 text-primary'>
+                    • {selectedNotes.length} selected
+                  </span>
+                )}
+              </p>
+              {selectedNotes.length > 0 && (
+                <div className='flex gap-2'>
+                  <Button size='sm' variant='outline'>
+                    Delete Selected ({selectedNotes.length})
+                  </Button>
+                  <Button size='sm' variant='outline'>
+                    Change Visibility
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </CardHeader>
       </Card>
 
-      {/* Notes Grid */}
+      {/* Notes List */}
       {data?.success && data.data.notes.length > 0 ? (
         <div>
-          <div className='grid grid-cols-1 gap-6'>
-            {data.data.notes.map(note => (
-              <NoteCard key={note._id} note={note} />
-            ))}
-          </div>
+          <Card>
+            <CardContent className='p-0'>
+              {/* Header Row */}
+              <div className='flex items-center p-4 border-b bg-muted/20'>
+                <div className='mr-4'>
+                  <Checkbox
+                    checked={selectedNotes.length === data.data.notes.length}
+                    onCheckedChange={handleSelectAll}
+                    indeterminate={
+                      selectedNotes.length > 0 &&
+                      selectedNotes.length < data.data.notes.length
+                        ? true
+                        : undefined
+                    }
+                  />
+                </div>
+                <div className='flex-1'>
+                  <span className='text-sm font-medium'>Note Title</span>
+                </div>
+                <div className='w-24 text-center'>
+                  <span className='text-sm font-medium'>Actions</span>
+                </div>
+              </div>
+
+              {/* Notes List */}
+              <div>
+                {data.data.notes.map(note => (
+                  <NoteListItem key={note._id} note={note} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
           <Pagination pagination={data.data.pagination} />
         </div>
       ) : (
@@ -250,6 +320,25 @@ const UploadedNotes = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog Components */}
+      <EditNoteDialog
+        isOpen={editDialog.isOpen}
+        onClose={() => setEditDialog({ isOpen: false, note: null })}
+        note={editDialog.note}
+      />
+
+      <ShareNoteDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() => setShareDialog({ isOpen: false, note: null })}
+        note={shareDialog.note}
+      />
+
+      <AnalysisDialog
+        isOpen={analysisDialog.isOpen}
+        onClose={() => setAnalysisDialog({ isOpen: false, note: null })}
+        note={analysisDialog.note}
+      />
     </div>
   )
 }
