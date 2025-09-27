@@ -156,7 +156,7 @@ const NotesFeedPage = () => {
   const handleViewNote = noteId => {
     // TODO: Navigate to note detail page or open in modal
     console.log('View note:', noteId)
-    window.open(`/notes/${noteId}`, '_blank')
+    window.open(`/note/${noteId}`, '_blank')
   }
 
   const handleDownloadNote = noteId => {
