@@ -8,6 +8,12 @@ if (!publishableKey) {
 
 export default function ClerkProviderWrapper({ children }) {
   return (
-    <ClerkProvider publishableKey={publishableKey}>{children}</ClerkProvider>
+    <ClerkProvider
+      publishableKey={publishableKey}
+      afterSignInUrl='/profile'
+      afterSignUpUrl='/profile'
+    >
+      {children}
+    </ClerkProvider>
   )
 }
