@@ -140,7 +140,11 @@ const NoteCard = ({ note, onView, onDownload }) => {
         </Link>
 
         {/* Subject */}
-        <p className='text-sm text-gray-600 mb-3'>{subject}</p>
+        <p className='text-sm text-gray-600 mb-3'>
+          {typeof subject === 'string'
+            ? subject
+            : subject?.name || 'No Subject'}
+        </p>
 
         {/* Stats and Actions */}
         <div className='flex items-center justify-between'>

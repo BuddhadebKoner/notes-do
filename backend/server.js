@@ -18,6 +18,8 @@ import noteRoutes from './src/routes/notes.js';
 import googleRoutes from './src/routes/google.js';
 import profileRoutes from './src/routes/profile.js';
 import commentRoutes from './src/routes/comments.js';
+import shareRoutes from './src/routes/share.js';
+import wishlistShareRoutes from './src/routes/wishlistShare.js';
 
 // Load environment variables
 dotenv.config();
@@ -144,7 +146,9 @@ app.get('/api', (req, res) => {
          notes: '/api/notes',
          profile: '/api/profile',
          google: '/api/google',
-         comments: '/api/comments'
+         comments: '/api/comments',
+         share: '/api/share',
+         wishlistShare: '/api/wishlist-share'
       },
    });
 });
@@ -155,6 +159,8 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/google', googleRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/share', shareRoutes);
+app.use('/api/wishlist-share', wishlistShareRoutes);
 
 // Serve uploaded files (for development fallback)
 app.use('/uploads', express.static('uploads'));

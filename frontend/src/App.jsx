@@ -17,6 +17,8 @@ import GoogleCallback from './components/google/GoogleCallback'
 import UploadNote from './_root/_profile/components/UploadNote'
 import NoteDetails from './_root/pages/NoteDetails'
 import PublicProfile from './_root/pages/PublicProfile'
+import SharePage from './pages/SharePage'
+import SharedWishlistPage from './pages/SharedWishlistPage'
 
 function App() {
   return (
@@ -39,6 +41,11 @@ function App() {
             <Route path='user/:username' element={<PublicProfile />} />
             <Route path='upload' element={<UploadNote />} />
           </Route>
+          <Route path='/share/:noteId' element={<SharePage />} />
+          <Route
+            path='/wishlist/:wishlistId'
+            element={<SharedWishlistPage />}
+          />
           <Route path='/auth/google/callback' element={<GoogleCallback />} />
         </Routes>
         <Toaster

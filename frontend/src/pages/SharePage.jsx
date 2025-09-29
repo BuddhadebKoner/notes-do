@@ -1,25 +1,21 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
-import {
-  useGetNoteById,
-  useLikeNote,
-  useUnlikeNote,
-} from '../../lib/react-query/queriesAndMutation.js'
+import React, { useEffect, useState } from 'react'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '@clerk/clerk-react'
+import { useAccessSharedNote } from '../lib/react-query/queriesAndMutation.js'
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from '../../components/ui/card.jsx'
+} from '../components/ui/card.jsx'
+import { Button } from '../components/ui/button.jsx'
+import { Badge } from '../components/ui/badge.jsx'
 import {
   Avatar,
   AvatarImage,
   AvatarFallback,
-} from '../../components/ui/avatar.jsx'
-import { Badge } from '../../components/ui/badge.jsx'
-import { Button } from '../../components/ui/button.jsx'
-import { Skeleton } from '../../components/ui/skeleton.jsx'
+} from '../components/ui/avatar.jsx'
+import { Skeleton } from '../components/ui/skeleton.jsx'
 import {
   ArrowLeft,
   Download,
@@ -42,52 +38,55 @@ import {
   Building,
   UserCheck,
   Users,
-  FileX,
-  Info,
-  Search,
+  AlertTriangle,
+  Share2,
+  CheckCircle,
   RefreshCw,
+  Search,
 } from 'lucide-react'
-import UnlikeConfirmationDialog from '../../components/ui/unlike-confirmation-dialog'
-import CommentSection from '../../components/notes/CommentSection.jsx'
-import { toast } from 'sonner'
 
-const NoteDetails = () => {
-  const { id } = useParams()
+const SharePage = () => {
+  const { noteId } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { user: clerkUser, isSignedIn } = useUser()
-
-  // Use TanStack Query for fetching note details
-  const {
-    data: noteResponse,
-    isLoading: loading,
-    isError,
-    error: queryError,
-    refetch: refetchNoteDetails,
-  } = useGetNoteById(id)
-
-  // React Query mutations
-  const likeNoteMutation = useLikeNote()
-  const unlikeNoteMutation = useUnlikeNote()
-
-  // Extract note data from response
-  const noteData = noteResponse?.note || null
-
-  // Convert query error to string format matching original implementation
-  const error = isError
-    ? queryError?.message || 'Failed to load note details'
-    : null
-
+  const { isSignedIn, isLoaded } = useAuth()
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [iframeError, setIframeError] = useState(false)
   const [iframeLoading, setIframeLoading] = useState(false)
-  const [showUnlikeDialog, setShowUnlikeDialog] = useState(false)
   const [actionLoading, setActionLoading] = useState({
-    like: false,
-    bookmark: false,
     download: false,
   })
 
+  const token = searchParams.get('token')
+
+  // Access shared note query
+  const {
+    data: sharedNoteData,
+    isLoading,
+    error,
+    isError,
+    refetch: refetchSharedNote,
+  } = useAccessSharedNote(noteId, token, !!noteId && !!token)
+
+  useEffect(() => {
+    // Show login prompt after 10 seconds if user is not signed in
+    if (isLoaded && !isSignedIn && sharedNoteData?.success) {
+      const timer = setTimeout(() => {
+        setShowLoginPrompt(true)
+      }, 10000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [isLoaded, isSignedIn, sharedNoteData])
+
+  const handleSignIn = () => {
+    // Store current URL to redirect back after sign in
+    sessionStorage.setItem('redirectAfterAuth', window.location.href)
+    navigate('/sign-in')
+  }
+
   const handleBack = () => {
-    navigate(-1)
+    navigate('/')
   }
 
   // Handle iframe loading states
@@ -107,21 +106,14 @@ const NoteDetails = () => {
     setIframeError(false)
   }
 
-  // Initialize iframe loading when noteData becomes available
-  useEffect(() => {
-    if (noteData?.file?.viewUrl && !iframeError) {
-      setIframeLoading(true)
-    }
-  }, [noteData?.file?.viewUrl])
-
   const handleDownload = async () => {
-    if (!noteData?.permissions?.canDownload || !noteData?.file?.downloadUrl)
-      return
+    const note = sharedNoteData?.data?.note
+    if (!note?.file?.directViewUrl) return
 
     setActionLoading(prev => ({ ...prev, download: true }))
     try {
       // Open download URL in new tab
-      window.open(noteData.file.downloadUrl, '_blank')
+      window.open(note.file.directViewUrl, '_blank')
     } catch (error) {
       console.error('Download error:', error)
     } finally {
@@ -133,8 +125,8 @@ const NoteDetails = () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: noteData.title,
-          text: noteData.description,
+          title: sharedNoteData?.data?.note?.title,
+          text: sharedNoteData?.data?.note?.description,
           url: window.location.href,
         })
       } catch (error) {
@@ -147,54 +139,10 @@ const NoteDetails = () => {
       // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(window.location.href)
-        toast.success('Link copied to clipboard!')
+        // You can add toast notification here if available
       } catch (error) {
         console.error('Copy to clipboard failed:', error)
-        toast.error('Failed to copy link')
       }
-    }
-  }
-
-  const handleLike = async () => {
-    if (!isSignedIn) {
-      toast.error('Please sign in to like notes')
-      return
-    }
-
-    if (!noteData?.permissions?.canLike) {
-      toast.error('You cannot like this note')
-      return
-    }
-
-    const isCurrentlyLiked = noteData?.social?.isLiked || false
-
-    if (isCurrentlyLiked) {
-      // Show confirmation dialog for unlike
-      setShowUnlikeDialog(true)
-    } else {
-      // Directly like the note
-      try {
-        await likeNoteMutation.mutateAsync(id)
-        toast.success('Note liked!')
-      } catch (error) {
-        console.error('Like error:', error)
-        const errorMessage =
-          error?.message || error?.error || 'Failed to like note'
-        toast.error(errorMessage)
-      }
-    }
-  }
-
-  const handleUnlike = async () => {
-    try {
-      await unlikeNoteMutation.mutateAsync(id)
-      setShowUnlikeDialog(false)
-      toast.success('Note unliked')
-    } catch (error) {
-      console.error('Unlike error:', error)
-      const errorMessage =
-        error?.message || error?.error || 'Failed to unlike note'
-      toast.error(errorMessage)
     }
   }
 
@@ -221,8 +169,15 @@ const NoteDetails = () => {
       .toUpperCase()
   }
 
+  // Initialize iframe loading when noteData becomes available
+  useEffect(() => {
+    if (sharedNoteData?.data?.note?.file?.viewUrl && !iframeError) {
+      setIframeLoading(true)
+    }
+  }, [sharedNoteData?.data?.note?.file?.viewUrl])
+
   // Loading state
-  if (loading) {
+  if (isLoading) {
     return (
       <div className='min-h-screen bg-gray-50 p-4'>
         <div className='max-w-6xl mx-auto space-y-6'>
@@ -267,12 +222,13 @@ const NoteDetails = () => {
   }
 
   // Error state
-  if (error) {
-    // Check if it's a private note error
-    const isPrivateNote = queryError?.errorType === 'PRIVATE_NOTE'
-    const isNotFound = error.includes('not found') || error.includes('404')
-    const noteTitle = queryError?.noteTitle
-    const uploader = queryError?.uploader
+  if (isError || !sharedNoteData?.success) {
+    const errorMessage = error?.message || 'Failed to load shared note'
+    const isExpired = error?.message?.includes('expired')
+    const isInvalid = error?.message?.includes('Invalid')
+    const requiresAuth =
+      error?.requiresAuth || error?.message?.includes('Authentication required')
+    const isPrivate = error?.message?.includes('private')
 
     return (
       <div className='min-h-screen bg-gray-50'>
@@ -281,58 +237,45 @@ const NoteDetails = () => {
             <CardContent className='p-8'>
               <div className='text-center space-y-6'>
                 <div className='w-20 h-20 mx-auto rounded-full flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100'>
-                  {isPrivateNote ? (
-                    <Lock className='w-10 h-10 text-red-600' />
-                  ) : isNotFound ? (
-                    <FileX className='w-10 h-10 text-red-600' />
+                  {requiresAuth || isPrivate ? (
+                    <UserCheck className='w-10 h-10 text-blue-600' />
+                  ) : isExpired ? (
+                    <AlertTriangle className='w-10 h-10 text-orange-600' />
                   ) : (
-                    <AlertCircle className='w-10 h-10 text-red-600' />
+                    <Lock className='w-10 h-10 text-red-600' />
                   )}
                 </div>
 
                 <div className='space-y-3'>
                   <h1 className='text-2xl font-bold text-gray-900'>
-                    {isPrivateNote
-                      ? 'Private Note'
-                      : isNotFound
-                        ? 'Note Not Found'
-                        : 'Access Error'}
+                    {requiresAuth || isPrivate
+                      ? 'Sign In Required'
+                      : isExpired
+                        ? 'Share Link Expired'
+                        : 'Access Denied'}
                   </h1>
-
-                  {noteTitle && isPrivateNote && (
-                    <p className='text-lg font-medium text-gray-700'>
-                      "{noteTitle}"
-                    </p>
-                  )}
-
                   <p className='text-gray-600 leading-relaxed'>
-                    {isPrivateNote
-                      ? 'This note is set to private and can only be accessed by the owner.'
-                      : isNotFound
-                        ? "The note you're looking for doesn't exist or has been removed."
-                        : 'There was an error loading this note. Please try again or contact support if the problem persists.'}
+                    {requiresAuth || isPrivate
+                      ? 'This is a private shared note. Please sign in to access it.'
+                      : isExpired
+                        ? 'This share link has expired and is no longer valid.'
+                        : isInvalid
+                          ? 'This share link is invalid or has been disabled.'
+                          : 'There was an error loading this shared note.'}
                   </p>
-
-                  {uploader && isPrivateNote && (
-                    <p className='text-sm text-gray-500'>
-                      Created by{' '}
-                      <span className='font-medium'>{uploader.name}</span> (@
-                      {uploader.username})
-                    </p>
-                  )}
                 </div>
 
-                {isPrivateNote && (
+                {(requiresAuth || isPrivate) && (
                   <div className='bg-blue-50 border border-blue-200 rounded-lg p-4'>
                     <div className='flex items-start gap-3'>
-                      <Info className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0' />
+                      <UserCheck className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0' />
                       <div className='text-left'>
                         <h4 className='font-medium text-blue-900 mb-1'>
-                          Need Access?
+                          Authentication Required
                         </h4>
                         <p className='text-sm text-blue-700'>
-                          Contact the note owner to request access or ask them
-                          to share it with you using a private share link.
+                          This note is private and requires you to be signed in
+                          to access it.
                         </p>
                       </div>
                     </div>
@@ -348,9 +291,17 @@ const NoteDetails = () => {
                     <ArrowLeft className='w-4 h-4 mr-2' />
                     Go Back
                   </Button>
-                  {!isPrivateNote && !isNotFound ? (
+                  {(requiresAuth || isPrivate) && !isSignedIn ? (
                     <Button
-                      onClick={() => refetchNoteDetails()}
+                      onClick={handleSignIn}
+                      className='flex-1 bg-blue-600 hover:bg-blue-700'
+                    >
+                      <UserCheck className='w-4 h-4 mr-2' />
+                      Sign In
+                    </Button>
+                  ) : !isExpired && !isInvalid ? (
+                    <Button
+                      onClick={() => refetchSharedNote()}
                       className='flex-1 bg-blue-600 hover:bg-blue-700'
                     >
                       <RefreshCw className='w-4 h-4 mr-2' />
@@ -374,55 +325,7 @@ const NoteDetails = () => {
     )
   }
 
-  // No access state
-  if (!noteData?.permissions?.hasAccess) {
-    return (
-      <div className='min-h-screen bg-gray-50 p-4'>
-        <div className='max-w-4xl mx-auto'>
-          {/* Header */}
-          <div className='flex items-center gap-4 mb-6'>
-            <Button variant='outline' onClick={handleBack}>
-              <ArrowLeft className='w-4 h-4 mr-2' />
-              Back
-            </Button>
-            <h1 className='text-2xl font-bold'>Note Details</h1>
-          </div>
-
-          {/* Restricted access card */}
-          <Card className='max-w-2xl mx-auto'>
-            <CardContent className='pt-6 text-center'>
-              <Lock className='w-16 h-16 text-gray-400 mx-auto mb-4' />
-              <h3 className='text-xl font-semibold mb-2'>{noteData.title}</h3>
-
-              {/* Basic info for restricted access */}
-              <div className='flex items-center justify-center gap-4 mb-4 text-sm text-gray-600'>
-                <div className='flex items-center gap-1'>
-                  <User className='w-4 h-4' />
-                  {noteData.uploader?.name || 'Anonymous'}
-                </div>
-                <div className='flex items-center gap-1'>
-                  <Calendar className='w-4 h-4' />
-                  {formatDate(noteData.uploadDate)}
-                </div>
-              </div>
-
-              <Badge variant='outline' className='mb-4'>
-                {noteData.visibility} access required
-              </Badge>
-
-              <p className='text-gray-600 mb-4'>{noteData.message}</p>
-
-              {!clerkUser && (
-                <Button onClick={() => navigate('/sign-in')}>
-                  Sign In to Access
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
+  const note = sharedNoteData.note
 
   // Main content with access
   return (
@@ -436,42 +339,34 @@ const NoteDetails = () => {
               Back
             </Button>
             <div>
-              <h1 className='text-2xl font-bold'>{noteData.title}</h1>
-              <p className='text-gray-600'>Note Details</p>
+              <h1 className='text-2xl font-bold'>{note.title}</h1>
+              <p className='text-gray-600 flex items-center gap-2'>
+                <Share2 className='w-4 h-4' />
+                Shared Note
+                {isSignedIn && (
+                  <span className='flex items-center gap-1 text-green-600 text-sm'>
+                    <CheckCircle className='w-3 h-3' />
+                    Authenticated
+                  </span>
+                )}
+              </p>
             </div>
           </div>
 
           {/* Action buttons */}
           <div className='flex items-center gap-2'>
-            {/* Like button - only show if user can like */}
-            {noteData.permissions.canLike && isSignedIn && (
-              <Button
-                variant={noteData.social?.isLiked ? 'default' : 'outline'}
-                onClick={handleLike}
-                disabled={
-                  likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
-                }
-                className={`${
-                  noteData.social?.isLiked
-                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                    : 'border-red-200 text-red-600 hover:bg-red-50'
-                }`}
-              >
-                <Heart
-                  className={`w-4 h-4 mr-2 ${
-                    noteData.social?.isLiked ? 'fill-current' : ''
-                  } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
-                />
-                {likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
-                  ? 'Processing...'
-                  : noteData.social?.isLiked
-                    ? 'Liked'
-                    : 'Like'}
-              </Button>
-            )}
+            {/* Like button - disabled for shared notes */}
+            <Button
+              variant='outline'
+              disabled
+              className='border-red-200 text-red-400 cursor-not-allowed'
+            >
+              <Heart className='w-4 h-4 mr-2' />
+              {note.social?.likesCount || 0} Likes
+            </Button>
 
             {/* Download button */}
-            {noteData.permissions.canDownload && (
+            {note?.permissions?.canDownload && (
               <Button
                 onClick={handleDownload}
                 disabled={actionLoading.download}
@@ -488,6 +383,9 @@ const NoteDetails = () => {
               <Share className='w-4 h-4 mr-2' />
               Share
             </Button>
+
+            {/* Sign in button for anonymous users */}
+            {!isSignedIn && <Button onClick={handleSignIn}>Sign In</Button>}
           </div>
         </div>
 
@@ -503,7 +401,7 @@ const NoteDetails = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {noteData.file?.viewUrl ? (
+                {note.file?.viewUrl ? (
                   <div className='relative'>
                     {/* Iframe loading skeleton */}
                     {iframeLoading && (
@@ -517,9 +415,9 @@ const NoteDetails = () => {
 
                     {!iframeError && (
                       <iframe
-                        src={noteData.file.viewUrl}
+                        src={note.file.viewUrl}
                         className='w-full aspect-[1/1.414] rounded-lg border'
-                        title={noteData.title}
+                        title={note.title}
                         loading='lazy'
                         onLoad={handleIframeLoad}
                         onError={handleIframeError}
@@ -562,7 +460,7 @@ const NoteDetails = () => {
                       className='absolute top-2 right-2 bg-white/90 backdrop-blur-sm'
                       onClick={() =>
                         window.open(
-                          noteData.file.directViewUrl || noteData.file.viewUrl,
+                          note.file.directViewUrl || note.file.viewUrl,
                           '_blank'
                         )
                       }
@@ -588,17 +486,17 @@ const NoteDetails = () => {
                 <CardTitle>Description</CardTitle>
               </CardHeader>
               <CardContent className='space-y-4'>
-                <p className='text-gray-700'>{noteData.description}</p>
+                <p className='text-gray-700'>{note.description}</p>
 
                 {/* Tags */}
-                {noteData.tags && noteData.tags.length > 0 && (
+                {note.tags && note.tags.length > 0 && (
                   <div>
                     <h4 className='font-medium mb-2 flex items-center gap-2'>
                       <Tag className='w-4 h-4' />
                       Tags
                     </h4>
                     <div className='flex flex-wrap gap-2'>
-                      {noteData.tags.map((tag, index) => (
+                      {note.tags.map((tag, index) => (
                         <Badge key={index} variant='secondary'>
                           {tag}
                         </Badge>
@@ -606,26 +504,34 @@ const NoteDetails = () => {
                     </div>
                   </div>
                 )}
-
-                {/* Keywords */}
-                {noteData.content?.keywords &&
-                  noteData.content.keywords.length > 0 && (
-                    <div>
-                      <h4 className='font-medium mb-2'>Keywords</h4>
-                      <div className='flex flex-wrap gap-2'>
-                        {noteData.content.keywords.map((keyword, index) => (
-                          <Badge key={index} variant='outline'>
-                            {keyword}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
               </CardContent>
             </Card>
 
-            {/* Comments Section */}
-            <CommentSection noteId={id} />
+            {/* Comments Section - Disabled for shared notes */}
+            <Card>
+              <CardHeader>
+                <CardTitle className='flex items-center gap-2'>
+                  <MessageCircle className='w-5 h-5' />
+                  Comments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-center py-8 text-gray-500'>
+                  <MessageCircle className='w-12 h-12 mx-auto mb-3 text-gray-300' />
+                  <h3 className='font-medium mb-2'>Comments Not Available</h3>
+                  <p className='text-sm'>
+                    Comments are not available for shared notes.
+                    {!isSignedIn &&
+                      ' Sign in and view the original note to see comments.'}
+                  </p>
+                  {!isSignedIn && (
+                    <Button onClick={handleSignIn} className='mt-4'>
+                      Sign In to Access Full Features
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}
@@ -641,37 +547,26 @@ const NoteDetails = () => {
               <CardContent>
                 <div className='flex items-center gap-3 mb-4'>
                   <Avatar className='w-12 h-12'>
-                    <AvatarImage src={noteData.uploader?.avatar} />
+                    <AvatarImage src={note.uploader?.avatar} />
                     <AvatarFallback>
-                      {getInitials(noteData.uploader?.name || 'Anonymous')}
+                      {getInitials(note.uploader?.fullName || 'Anonymous')}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <div className='flex items-center gap-2'>
                       <span className='font-semibold'>
-                        {noteData.uploader?.name}
+                        {note.uploader?.fullName}
                       </span>
-                      {noteData.uploader?.isVerified && (
-                        <UserCheck className='w-4 h-4 text-blue-500' />
-                      )}
                     </div>
                     <p className='text-sm text-gray-600'>
-                      @{noteData.uploader?.username}
+                      @{note.uploader?.username}
                     </p>
-                    <Badge variant='outline' size='sm'>
-                      {noteData.uploader?.role}
-                    </Badge>
                   </div>
                 </div>
 
-                <Button
-                  variant='outline'
-                  className='w-full'
-                  onClick={() =>
-                    navigate(`/user/${noteData.uploader?.username}`)
-                  }
-                >
-                  View Profile
+                {/* Disabled profile button for shared notes */}
+                <Button variant='outline' className='w-full' disabled>
+                  View Profile (Not Available)
                 </Button>
               </CardContent>
             </Card>
@@ -685,24 +580,59 @@ const NoteDetails = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className='space-y-3'>
-                <div className='flex items-center gap-2 text-sm'>
-                  <School className='w-4 h-4 text-gray-500' />
-                  <span>{noteData.academic?.university}</span>
-                </div>
-                <div className='flex items-center gap-2 text-sm'>
-                  <Building className='w-4 h-4 text-gray-500' />
-                  <span>{noteData.academic?.department}</span>
-                </div>
-                <div className='flex items-center gap-2 text-sm'>
-                  <BookOpen className='w-4 h-4 text-gray-500' />
-                  <span>Semester {noteData.academic?.semester}</span>
-                </div>
-                <div className='flex items-center gap-2 text-sm'>
-                  <Calendar className='w-4 h-4 text-gray-500' />
-                  <span>{noteData.academic?.academicYear}</span>
-                </div>
+                {note.academic?.university &&
+                  note.academic.university !== 'ALL' && (
+                    <div className='flex items-center gap-2 text-sm'>
+                      <School className='w-4 h-4 text-gray-500' />
+                      <span>{note.academic.university}</span>
+                    </div>
+                  )}
+                {note.academic?.department &&
+                  note.academic.department !== 'ALL' && (
+                    <div className='flex items-center gap-2 text-sm'>
+                      <Building className='w-4 h-4 text-gray-500' />
+                      <span>{note.academic.department}</span>
+                    </div>
+                  )}
+                {note.academic?.semester && note.academic.semester > 0 && (
+                  <div className='flex items-center gap-2 text-sm'>
+                    <BookOpen className='w-4 h-4 text-gray-500' />
+                    <span>Semester {note.academic.semester}</span>
+                  </div>
+                )}
+                {note.academic?.academicYear && (
+                  <div className='flex items-center gap-2 text-sm'>
+                    <Calendar className='w-4 h-4 text-gray-500' />
+                    <span>{note.academic.academicYear}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            {/* Subject Info */}
+            {note.subject && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className='flex items-center gap-2'>
+                    <BookOpen className='w-5 h-5' />
+                    Subject
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className='space-y-2'>
+                    <div className='font-medium'>{note.subject.name}</div>
+                    <div className='flex gap-2'>
+                      <Badge variant='outline' className='text-xs'>
+                        {note.subject.category.replace('-', ' ')}
+                      </Badge>
+                      <Badge variant='outline' className='text-xs'>
+                        {note.subject.difficulty}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* File Info */}
             <Card>
@@ -714,32 +644,18 @@ const NoteDetails = () => {
               </CardHeader>
               <CardContent className='space-y-3'>
                 <div className='text-sm'>
-                  <span className='text-gray-500'>Filename:</span>
-                  <p className='font-medium break-all'>
-                    {noteData.file?.driveFileName}
-                  </p>
-                </div>
-                <div className='text-sm'>
                   <span className='text-gray-500'>Size:</span>
                   <p className='font-medium'>
-                    {formatFileSize(noteData.file?.size)}
+                    {formatFileSize(note.file?.size)}
                   </p>
                 </div>
                 <div className='text-sm'>
                   <span className='text-gray-500'>Type:</span>
-                  <p className='font-medium'>{noteData.file?.mimeType}</p>
+                  <p className='font-medium'>{note.file?.mimeType}</p>
                 </div>
-                {noteData.file?.pageCount && (
-                  <div className='text-sm'>
-                    <span className='text-gray-500'>Pages:</span>
-                    <p className='font-medium'>{noteData.file.pageCount}</p>
-                  </div>
-                )}
                 <div className='text-sm'>
                   <span className='text-gray-500'>Uploaded:</span>
-                  <p className='font-medium'>
-                    {formatDate(noteData.uploadDate)}
-                  </p>
+                  <p className='font-medium'>{formatDate(note.uploadDate)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -757,30 +673,30 @@ const NoteDetails = () => {
                   <div>
                     <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
                       <Eye className='w-5 h-5 text-gray-500' />
-                      {noteData.social?.views || 0}
+                      {note.social?.views || 0}
                     </div>
                     <p className='text-xs text-gray-500'>Views</p>
                   </div>
                   <div>
                     <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
                       <Heart className='w-5 h-5 text-red-500' />
-                      {noteData.social?.likes || 0}
+                      {note.social?.likesCount || 0}
                     </div>
                     <p className='text-xs text-gray-500'>Likes</p>
                   </div>
                   <div>
                     <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
                       <Download className='w-5 h-5 text-green-500' />
-                      {noteData.social?.downloads || 0}
+                      {note.social?.downloads || 0}
                     </div>
                     <p className='text-xs text-gray-500'>Downloads</p>
                   </div>
                   <div>
                     <div className='flex items-center justify-center gap-1 text-2xl font-bold'>
-                      <Bookmark className='w-5 h-5 text-blue-500' />
-                      {noteData.social?.bookmarks || 0}
+                      <Share2 className='w-5 h-5 text-blue-500' />
+                      {note.social?.shares || 0}
                     </div>
-                    <p className='text-xs text-gray-500'>Bookmarks</p>
+                    <p className='text-xs text-gray-500'>Shares</p>
                   </div>
                 </div>
               </CardContent>
@@ -790,38 +706,44 @@ const NoteDetails = () => {
             <Card>
               <CardContent className='pt-6'>
                 <div className='text-center'>
-                  <Badge variant='outline' className='mb-2'>
-                    {noteData.visibility} visibility
+                  <Badge
+                    variant='outline'
+                    className='mb-2 flex items-center gap-1 w-fit mx-auto'
+                  >
+                    <Share2 className='w-3 h-3' />
+                    Shared Link Access
                   </Badge>
                   <p className='text-xs text-gray-500'>
-                    This note is visible to{' '}
-                    {noteData.visibility === 'public'
-                      ? 'everyone'
-                      : noteData.visibility === 'university'
-                        ? 'university students'
-                        : noteData.visibility === 'department'
-                          ? 'department students'
-                          : noteData.visibility === 'course'
-                            ? 'course students'
-                            : 'owner only'}
+                    You're viewing this note via a private share link. Some
+                    features may be limited.
                   </p>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Login Prompt for Anonymous Users */}
+            {showLoginPrompt && !isSignedIn && (
+              <Card className='border-blue-200 bg-blue-50'>
+                <CardContent className='p-6 text-center'>
+                  <div className='mb-4'>
+                    <CheckCircle className='h-12 w-12 mx-auto text-blue-600' />
+                  </div>
+                  <h3 className='font-medium mb-2'>Enjoying this note?</h3>
+                  <p className='text-sm text-muted-foreground mb-4'>
+                    Sign in to access full features, like notes, and save them
+                    to your collection.
+                  </p>
+                  <Button onClick={handleSignIn} className='w-full'>
+                    Sign In to Continue
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Unlike Confirmation Dialog */}
-      <UnlikeConfirmationDialog
-        isOpen={showUnlikeDialog}
-        onClose={() => setShowUnlikeDialog(false)}
-        onConfirm={handleUnlike}
-        isLoading={unlikeNoteMutation.isLoading}
-        noteTitle={noteData?.title || 'this note'}
-      />
     </div>
   )
 }
 
-export default NoteDetails
+export default SharePage

@@ -22,7 +22,9 @@ import {
   AvatarImage,
 } from '../../components/ui/avatar.jsx'
 import { Badge } from '../../components/ui/badge.jsx'
-import RoleSelectionDialog from '../../components/ui/role-selection-dialog.jsx'
+import ProfileOnboarding from './components/ProfileOnboarding.jsx'
+import { triggerSuccessConfetti } from '../../components/ui/confetti.jsx'
+import { ProfileTour } from '../../components/ui/profile-tour.jsx'
 import {
   BarChart2,
   Bookmark,
@@ -35,15 +37,13 @@ import {
 } from 'lucide-react'
 
 const ProfileLayout = () => {
-  const { user: clerkUser } = useUser()
+  const { user: clerkUser, isLoaded: isClerkLoaded } = useUser()
   const { getToken } = useClerkAuth()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showTour, setShowTour] = useState(false)
 
-  // State for role selection dialog
-  const [showRoleDialog, setShowRoleDialog] = useState(false)
-
-  // Automatically fetch profile data with user auto-creation when logged in
+  // Always call the hook, but control when it fetches data
   const {
     data: profileData,
     isLoading: profileLoading,
@@ -54,34 +54,65 @@ const ProfileLayout = () => {
     wasUserJustCreated,
     needsUserCreation,
     createUserManually,
-  } = useProfileWithAutoCreation()
+  } = useProfileWithAutoCreation({
+    enabled: isClerkLoaded && !!clerkUser,
+  })
 
-  // Show role dialog when user needs to be created
-  useEffect(() => {
-    if (
-      needsUserCreation &&
-      !showRoleDialog &&
-      !isCreatingUser &&
-      !wasUserJustCreated
-    ) {
-      console.log('Showing role selection dialog - user needs profile creation')
-      setShowRoleDialog(true)
-    }
-  }, [needsUserCreation, showRoleDialog, isCreatingUser, wasUserJustCreated])
-
-  // Hide dialog when user is successfully created
-  useEffect(() => {
-    if (wasUserJustCreated && showRoleDialog) {
-      console.log(
-        'Hiding role selection dialog - user profile created successfully'
-      )
-      setShowRoleDialog(false)
-    }
-  }, [wasUserJustCreated, showRoleDialog])
-
-  // Handle role selection
+  // Handle role selection from onboarding
   const handleRoleSelect = role => {
     createUserManually({ role })
+  }
+
+  // Trigger confetti when user profile is successfully created
+  useEffect(() => {
+    if (wasUserJustCreated) {
+      // Small delay to ensure the success message is rendered first
+      const timer = setTimeout(() => {
+        triggerSuccessConfetti()
+        // Show tour after confetti for new users
+        setTimeout(() => {
+          setShowTour(true)
+        }, 2000)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [wasUserJustCreated])
+
+  // Check if user should see tour (first time on profile)
+  useEffect(() => {
+    if (profileData?.success && profileData.user && !wasUserJustCreated) {
+      // Check if user has completed basic profile info
+      const hasBasicInfo =
+        profileData.user.academic?.university &&
+        profileData.user.academic?.department &&
+        profileData.user.profile?.bio
+
+      // Show tour if user hasn't completed basic info and hasn't seen tour before
+      const hasSeenTour = localStorage.getItem(
+        `profile-tour-${profileData.user.id}`
+      )
+
+      if (!hasBasicInfo && !hasSeenTour) {
+        const timer = setTimeout(() => {
+          setShowTour(true)
+        }, 1000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [profileData, wasUserJustCreated])
+
+  const handleTourComplete = () => {
+    setShowTour(false)
+    if (profileData?.user?.id) {
+      localStorage.setItem(`profile-tour-${profileData.user.id}`, 'completed')
+    }
+  }
+
+  const handleTourSkip = () => {
+    setShowTour(false)
+    if (profileData?.user?.id) {
+      localStorage.setItem(`profile-tour-${profileData.user.id}`, 'skipped')
+    }
   }
 
   // Set token when component mounts
@@ -146,13 +177,17 @@ const ProfileLayout = () => {
     return location.pathname.startsWith(path)
   }
 
-  // Loading state
-  if (isInitializing) {
+  // Loading state - show loading if Clerk is not loaded or if profile is initializing
+  if (!isClerkLoaded || (isClerkLoaded && clerkUser && isInitializing)) {
     return (
       <div className='min-h-screen flex items-center justify-center bg-gray-50 px-4'>
         <div className='text-center max-w-md mx-auto p-4 sm:p-6'>
           <div className='animate-spin rounded-full h-10 sm:h-12 w-10 sm:w-12 border-b-2 border-blue-600 mx-auto mb-3 sm:mb-4'></div>
-          {isCreatingUser ? (
+          {!isClerkLoaded ? (
+            <p className='text-gray-600 text-sm sm:text-base'>
+              Loading authentication...
+            </p>
+          ) : isCreatingUser ? (
             <>
               <p className='text-gray-600 mb-2 text-sm sm:text-base'>
                 Setting up your profile...
@@ -174,25 +209,26 @@ const ProfileLayout = () => {
   return (
     <div className='min-h-screen bg-gray-50'>
       <SignedIn>
-        {profileError || creationError ? (
+        {/* Show onboarding for new users or users needing profile creation */}
+        {needsUserCreation ||
+        (profileError && profileError.message?.includes('User not found')) ? (
+          <ProfileOnboarding
+            onRoleSelect={handleRoleSelect}
+            isLoading={isCreatingUser}
+            error={creationError}
+          />
+        ) : profileError || creationError ? (
           <div className='min-h-screen flex items-center justify-center px-4'>
             <Card className='max-w-md w-full mx-auto'>
               <CardHeader className='text-center pb-4 sm:pb-6'>
                 <CardTitle className='text-xl sm:text-2xl text-gray-900'>
-                  {creationError ? 'Profile Setup Error' : 'Profile Error'}
+                  Something went wrong
                 </CardTitle>
               </CardHeader>
               <CardContent className='text-center space-y-4 pt-0'>
                 <p className='text-red-600 text-sm sm:text-base'>
                   {creationError?.message || profileError?.message}
                 </p>
-                {creationError && (
-                  <p className='text-xs sm:text-sm text-gray-600'>
-                    We encountered an issue setting up your profile. Please try
-                    refreshing the page or contact support if the problem
-                    persists.
-                  </p>
-                )}
                 <div className='space-y-2'>
                   <Button
                     onClick={() => window.location.reload()}
@@ -211,25 +247,39 @@ const ProfileLayout = () => {
           <div className='max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8'>
             {/* Success notification for new users */}
             {wasUserJustCreated && (
-              <Card className='mb-6 border-green-200 bg-green-50'>
+              <Card className='mb-6 border-green-200 bg-gradient-to-r from-green-50 to-blue-50 shadow-lg animate-in slide-in-from-top duration-500'>
                 <CardContent className='pt-6'>
                   <div className='flex items-center'>
                     <div className='flex-shrink-0'>
-                      <span className='text-green-600 text-xl'>✅</span>
+                      <span className='text-2xl animate-bounce'>🎉</span>
                     </div>
-                    <div className='ml-3'>
-                      <h3 className='text-sm font-medium text-green-800'>
-                        Welcome to Notes-Do!
+                    <div className='ml-3 flex-1'>
+                      <h3 className='text-lg font-bold text-green-800 mb-1'>
+                        Welcome to Notes-Do! 🎊
                       </h3>
-                      <p className='text-sm text-green-700 mt-1'>
-                        Your profile has been created successfully. You can now
+                      <p className='text-sm text-green-700'>
+                        Your profile has been created successfully! You can now
                         upload notes, build your wishlist, and connect with
-                        other students.
+                        other students. Let's get started! 🚀
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Tour trigger for existing users */}
+            {profileData?.success && !wasUserJustCreated && (
+              <div className=' flex justify-end'>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => setShowTour(true)}
+                  className='text-gray-500 hover:text-gray-700'
+                >
+                  <span className='text-sm'>Need help?</span>
+                </Button>
+              </div>
             )}
 
             {/* Profile Header */}
@@ -350,6 +400,7 @@ const ProfileLayout = () => {
                           }
                           className='w-full justify-start text-sm sm:text-base'
                           onClick={() => setSidebarOpen(false)} // Close sidebar on mobile when item is clicked
+                          data-tour={item.id}
                         >
                           <Link
                             to={item.path}
@@ -398,13 +449,11 @@ const ProfileLayout = () => {
         </div>
       </SignedOut>
 
-      {/* Role Selection Dialog */}
-      <RoleSelectionDialog
-        open={showRoleDialog}
-        onOpenChange={setShowRoleDialog}
-        onRoleSelect={handleRoleSelect}
-        isLoading={isCreatingUser}
-        error={creationError}
+      {/* Profile Tour */}
+      <ProfileTour
+        isActive={showTour}
+        onComplete={handleTourComplete}
+        onSkip={handleTourSkip}
       />
     </div>
   )

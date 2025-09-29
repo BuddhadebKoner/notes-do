@@ -734,12 +734,11 @@ export const getPublicUserProfile = async (req, res) => {
             }
          };
 
-         // Check if requesting user follows target user
+         // Check if requesting user follows target user using efficient method
          if (requestingUser && !isOwnProfile) {
-            const isFollowing = requestingUser.activity.following.includes(targetUser._id);
             responseData.relationship = {
-               isFollowing,
-               isFollowedBy: targetUser.activity.following.includes(requestingUser._id)
+               isFollowing: requestingUser.isFollowing(targetUser._id),
+               isFollowedBy: requestingUser.isFollowedBy(targetUser._id)
             };
          }
       } else {
@@ -961,7 +960,7 @@ export const followUser = async (req, res) => {
       const userToFollow = await User.findOne({
          username,
          'account.isActive': true
-      });
+      }).select('_id username profile preferences academic activity');
 
       if (!userToFollow) {
          return res.status(404).json({
@@ -978,23 +977,33 @@ export const followUser = async (req, res) => {
          });
       }
 
+      // Check if already following
+      if (req.user.isFollowing(userToFollow._id)) {
+         return res.status(400).json({
+            success: false,
+            message: 'You are already following this user',
+            data: {
+               relationship: {
+                  isFollowing: true,
+                  followersCount: userToFollow.activity.followers.length,
+                  followingCount: req.user.activity.following.length
+               }
+            }
+         });
+      }
+
       // Check privacy settings and follow permissions
       const profileVisibility = userToFollow.preferences?.privacy?.profileVisibility || 'university';
       let canFollow = false;
 
       if (profileVisibility === 'public') {
-         // Public profile - anyone can follow
          canFollow = true;
       } else if (profileVisibility === 'university') {
-         // University-only - check if same university
          const sameUniversity = req.user.academic?.university &&
             userToFollow.academic?.university &&
             req.user.academic.university.toLowerCase() ===
             userToFollow.academic.university.toLowerCase();
          canFollow = sameUniversity;
-      } else if (profileVisibility === 'private') {
-         // Private profile - no one can follow
-         canFollow = false;
       }
 
       if (!canFollow) {
@@ -1010,30 +1019,8 @@ export const followUser = async (req, res) => {
          });
       }
 
-      // Use atomic operations to update both users - MongoDB handles duplicates with $addToSet
-      const [currentUserResult, targetUserResult] = await Promise.all([
-         User.findByIdAndUpdate(
-            req.user._id,
-            { $addToSet: { 'activity.following': userToFollow._id } },
-            { new: true }
-         ),
-         User.findByIdAndUpdate(
-            userToFollow._id,
-            { $addToSet: { 'activity.followers': req.user._id } },
-            { new: true }
-         )
-      ]);
-
-      // Check if the follow action actually happened (not already following)
-      const wasAlreadyFollowing = !currentUserResult.activity.following.includes(userToFollow._id) ||
-         !targetUserResult.activity.followers.includes(req.user._id);
-
-      if (wasAlreadyFollowing) {
-         return res.status(400).json({
-            success: false,
-            message: 'You are already following this user'
-         });
-      }
+      // Use the efficient toggleFollow method
+      const result = await User.toggleFollow(req.user._id, userToFollow._id, 'follow');
 
       res.status(200).json({
          success: true,
@@ -1042,13 +1029,13 @@ export const followUser = async (req, res) => {
             followedUser: {
                id: userToFollow._id,
                username: userToFollow.username,
-               name: userToFollow.profile.fullName,
+               name: `${userToFollow.profile.firstName} ${userToFollow.profile.lastName}`,
                avatar: userToFollow.profile.avatar
             },
             relationship: {
                isFollowing: true,
-               followersCount: targetUserResult.activity.followers.length,
-               followingCount: currentUserResult.activity.following.length
+               followersCount: result.followersCount,
+               followingCount: result.followingCount
             }
          }
       });
@@ -1079,7 +1066,7 @@ export const unfollowUser = async (req, res) => {
       const userToUnfollow = await User.findOne({
          username,
          'account.isActive': true
-      });
+      }).select('_id username profile activity');
 
       if (!userToUnfollow) {
          return res.status(404).json({
@@ -1088,30 +1075,23 @@ export const unfollowUser = async (req, res) => {
          });
       }
 
-      // Use atomic operations to update both users
-      const [currentUserResult, targetUserResult] = await Promise.all([
-         User.findByIdAndUpdate(
-            req.user._id,
-            { $pull: { 'activity.following': userToUnfollow._id } },
-            { new: true }
-         ),
-         User.findByIdAndUpdate(
-            userToUnfollow._id,
-            { $pull: { 'activity.followers': req.user._id } },
-            { new: true }
-         )
-      ]);
-
-      // Check if the unfollow action actually happened
-      const wasNotFollowing = currentUserResult.activity.following.includes(userToUnfollow._id) ||
-         targetUserResult.activity.followers.includes(req.user._id);
-
-      if (wasNotFollowing) {
+      // Check if not following
+      if (!req.user.isFollowing(userToUnfollow._id)) {
          return res.status(400).json({
             success: false,
-            message: 'You are not following this user'
+            message: 'You are not following this user',
+            data: {
+               relationship: {
+                  isFollowing: false,
+                  followersCount: userToUnfollow.activity.followers.length,
+                  followingCount: req.user.activity.following.length
+               }
+            }
          });
       }
+
+      // Use the efficient toggleFollow method
+      const result = await User.toggleFollow(req.user._id, userToUnfollow._id, 'unfollow');
 
       res.status(200).json({
          success: true,
@@ -1120,13 +1100,13 @@ export const unfollowUser = async (req, res) => {
             unfollowedUser: {
                id: userToUnfollow._id,
                username: userToUnfollow.username,
-               name: userToUnfollow.profile.fullName,
+               name: `${userToUnfollow.profile.firstName} ${userToUnfollow.profile.lastName}`,
                avatar: userToUnfollow.profile.avatar
             },
             relationship: {
                isFollowing: false,
-               followersCount: targetUserResult.activity.followers.length,
-               followingCount: currentUserResult.activity.following.length
+               followersCount: result.followersCount,
+               followingCount: result.followingCount
             }
          }
       });

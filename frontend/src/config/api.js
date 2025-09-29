@@ -49,6 +49,20 @@ export const API_ENDPOINTS = {
     LIKE_COMMENT: '/comments',
     ADD_REPLY: '/comments',
   },
+  SHARE: {
+    CREATE_LINK: '/share/notes',
+    GET_INFO: '/share/notes',
+    DISABLE_LINK: '/share/notes',
+    ACCESS_NOTE: '/share/notes',
+    GET_ANALYTICS: '/share/notes',
+  },
+  WISHLIST_SHARE: {
+    CREATE_LINK: '/wishlist-share/wishlists',
+    GET_INFO: '/wishlist-share/wishlists',
+    DISABLE_LINK: '/wishlist-share/wishlists',
+    ACCESS_WISHLIST: '/wishlist-share/wishlists',
+    GET_ANALYTICS: '/wishlist-share/wishlists',
+  },
 }
 
 // Global token refresh function reference

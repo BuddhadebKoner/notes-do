@@ -9,6 +9,7 @@ import { Badge } from '../ui/badge.jsx'
 import CreateWishlistDialog from './CreateWishlistDialog.jsx'
 import EditWishlistDialog from './EditWishlistDialog.jsx'
 import WishlistDetailsDialog from './WishlistDetailsDialog.jsx'
+import ShareWishlistDialog from './ShareWishlistDialog.jsx'
 import ConfirmationDialog from '../ui/confirmation-dialog.jsx'
 import {
   Plus,
@@ -20,6 +21,7 @@ import {
   Trash2,
   Eye,
   Loader2,
+  Share2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -47,6 +49,8 @@ const Wishlists = () => {
   const [wishlistToEdit, setWishlistToEdit] = useState(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [wishlistToDelete, setWishlistToDelete] = useState(null)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [wishlistToShare, setWishlistToShare] = useState(null)
 
   const limit = 12
 
@@ -63,6 +67,11 @@ const Wishlists = () => {
   const handleEditWishlist = wishlist => {
     setWishlistToEdit(wishlist)
     setEditDialogOpen(true)
+  }
+
+  const handleShareWishlist = wishlist => {
+    setWishlistToShare(wishlist)
+    setShareDialogOpen(true)
   }
 
   const handleDeleteWishlist = wishlist => {
@@ -131,6 +140,15 @@ const Wishlists = () => {
                 >
                   <Edit3 className='w-4 h-4 mr-2' />
                   Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleShareWishlist(wishlist)
+                  }}
+                >
+                  <Share2 className='w-4 h-4 mr-2' />
+                  Share
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={e => {
@@ -362,6 +380,15 @@ const Wishlists = () => {
           onOpenChange={open => !open && setSelectedWishlist(null)}
         />
       )}
+
+      <ShareWishlistDialog
+        wishlist={wishlistToShare}
+        isOpen={shareDialogOpen}
+        onClose={() => {
+          setShareDialogOpen(false)
+          setWishlistToShare(null)
+        }}
+      />
 
       <ConfirmationDialog
         open={deleteDialogOpen}

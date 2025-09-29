@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { QUERY_KEYS } from './QueryKeys.js'
-import { authAPI, notesAPI, commentsAPI } from '../../services/api.js'
+import {
+  authAPI,
+  notesAPI,
+  commentsAPI,
+  shareAPI,
+  wishlistShareAPI,
+} from '../../services/api.js'
 import { profileAPI } from '../../services/api.js'
 
 // Mutation to check login status
@@ -243,10 +249,11 @@ export const useUpdateNoteDetails = () => {
 // ========== PROFILE QUERIES ==========
 
 // Query to get complete user profile with auto user creation
-export const useGetProfile = () => {
+export const useGetProfile = (options = {}) => {
+  const { enabled: customEnabled = true } = options
   const queryClient = useQueryClient()
   const { user: clerkUser } = useUser()
-  const isLoggedIn = !!clerkUser
+  const isLoggedIn = Boolean(clerkUser)
 
   return useQuery({
     queryKey: QUERY_KEYS.GET_PROFILE,
@@ -255,7 +262,7 @@ export const useGetProfile = () => {
       // Simply try to get the profile, let errors bubble up for manual handling
       return await profileAPI.getProfile()
     },
-    enabled: isLoggedIn, // Only run query when user is logged in
+    enabled: Boolean(isLoggedIn && customEnabled), // Ensure this is always a boolean
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false, // Prevent unnecessary refetches
@@ -286,9 +293,13 @@ export const useGetUploadedNotes = (
   sortBy = 'uploadDate',
   sortOrder = 'desc'
 ) => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
   return useQuery({
     queryKey: QUERY_KEYS.GET_UPLOADED_NOTES(page, limit, sortBy, sortOrder),
     queryFn: () => profileAPI.getUploadedNotes(page, limit, sortBy, sortOrder),
+    enabled: isLoggedIn,
     keepPreviousData: true,
     staleTime: 2 * 60 * 1000, // 2 minutes
   })
@@ -296,9 +307,13 @@ export const useGetUploadedNotes = (
 
 // Query to get user's wishlist
 export const useGetWishlist = (page = 1, limit = 10) => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
   return useQuery({
     queryKey: QUERY_KEYS.GET_WISHLIST(page, limit),
     queryFn: () => profileAPI.getWishlist(page, limit),
+    enabled: isLoggedIn,
     keepPreviousData: true,
     staleTime: 2 * 60 * 1000, // 2 minutes
   })
@@ -306,9 +321,13 @@ export const useGetWishlist = (page = 1, limit = 10) => {
 
 // Query to get user's favorites
 export const useGetFavorites = (page = 1, limit = 10) => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
   return useQuery({
     queryKey: QUERY_KEYS.GET_FAVORITES(page, limit),
     queryFn: () => profileAPI.getFavorites(page, limit),
+    enabled: isLoggedIn,
     keepPreviousData: true,
     staleTime: 2 * 60 * 1000, // 2 minutes
   })
@@ -316,27 +335,39 @@ export const useGetFavorites = (page = 1, limit = 10) => {
 
 // Query to get user's followers
 export const useGetFollowers = () => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
   return useQuery({
     queryKey: QUERY_KEYS.GET_FOLLOWERS,
     queryFn: profileAPI.getFollowers,
+    enabled: isLoggedIn,
     staleTime: 3 * 60 * 1000, // 3 minutes
   })
 }
 
 // Query to get user's following
 export const useGetFollowing = () => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
   return useQuery({
     queryKey: QUERY_KEYS.GET_FOLLOWING,
     queryFn: profileAPI.getFollowing,
+    enabled: isLoggedIn,
     staleTime: 3 * 60 * 1000, // 3 minutes
   })
 }
 
 // Query to get user activity statistics
 export const useGetActivityStats = () => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
   return useQuery({
     queryKey: QUERY_KEYS.GET_ACTIVITY_STATS,
     queryFn: profileAPI.getActivityStats,
+    enabled: isLoggedIn,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
@@ -435,12 +466,26 @@ export const useGetNoteById = noteId => {
     enabled: !!noteId, // Only run query when noteId is available
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false, // Prevent refetch on focus for efficiency
+    refetchOnMount: true, // Only refetch on mount if data is stale
+    refetchOnReconnect: 'always', // Refetch on reconnect in case of network issues
     retry: (failureCount, error) => {
-      // Don't retry for 404 or 403 errors
-      if (error.status === 404 || error.status === 403) {
+      // Don't retry on permission errors, private notes, or any 4xx client errors
+      if (error?.status >= 400 && error?.status < 500) {
         return false
       }
-      return failureCount < 2
+      // Don't retry on specific permission-related messages
+      if (
+        error?.message?.includes('private') ||
+        error?.message?.includes('not accessible') ||
+        error?.message?.includes('permission') ||
+        error?.message?.includes('access denied') ||
+        error?.message?.includes('Note not found')
+      ) {
+        return false
+      }
+      // Only retry on actual network/server errors (1 retry max for efficiency)
+      return failureCount < 1
     },
   })
 }
@@ -846,8 +891,9 @@ export const useAddReply = () => {
 // ========== ENHANCED PROFILE HOOK WITH USER CREATION ==========
 
 // Enhanced profile hook with loading states for user creation
-export const useProfileWithAutoCreation = () => {
-  const profileQuery = useGetProfile()
+export const useProfileWithAutoCreation = (options = {}) => {
+  const { enabled = true } = options
+  const profileQuery = useGetProfile({ enabled: Boolean(enabled) })
   const createUserMutation = useCreateUser()
   const { user: clerkUser } = useUser()
 
@@ -931,15 +977,22 @@ export const useFollowUser = () => {
 
       // Optimistically update the profile to show following state
       if (previousProfile?.user) {
+        const updatedUser = {
+          ...previousProfile.user,
+          relationship: {
+            ...previousProfile.user.relationship,
+            isFollowing: true,
+          },
+          activity: {
+            ...previousProfile.user.activity,
+            followersCount:
+              (previousProfile.user.activity?.followersCount || 0) + 1,
+          },
+        }
+
         queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), {
           ...previousProfile,
-          user: {
-            ...previousProfile.user,
-            relationship: {
-              ...previousProfile.user.relationship,
-              isFollowing: true,
-            },
-          },
+          user: updatedUser,
         })
       }
 
@@ -947,11 +1000,35 @@ export const useFollowUser = () => {
       return { previousProfile, username }
     },
     onSuccess: (data, username) => {
-      if (data.success) {
-        // Only invalidate the essential queries
+      if (data.success && data.data?.relationship) {
+        // Update with actual response data
+        const currentProfile = queryClient.getQueryData(
+          QUERY_KEYS.GET_PUBLIC_PROFILE(username)
+        )
+
+        if (currentProfile?.user) {
+          queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), {
+            ...currentProfile,
+            user: {
+              ...currentProfile.user,
+              relationship: {
+                ...currentProfile.user.relationship,
+                isFollowing: data.data.relationship.isFollowing,
+              },
+              activity: {
+                ...currentProfile.user.activity,
+                followersCount: data.data.relationship.followersCount,
+              },
+            },
+          })
+        }
+
+        // Invalidate related queries
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_FOLLOWING,
-          exact: true,
+        })
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_PROFILE,
         })
 
         console.log('User followed successfully:', data.message)
@@ -966,13 +1043,6 @@ export const useFollowUser = () => {
         )
       }
       console.error('Follow user failed:', error)
-    },
-    onSettled: (data, error, username) => {
-      // Only refetch the public profile to ensure consistency
-      queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
-        exact: true,
-      })
     },
   })
 }
@@ -997,15 +1067,24 @@ export const useUnfollowUser = () => {
 
       // Optimistically update the profile to show unfollowing state
       if (previousProfile?.user) {
+        const updatedUser = {
+          ...previousProfile.user,
+          relationship: {
+            ...previousProfile.user.relationship,
+            isFollowing: false,
+          },
+          activity: {
+            ...previousProfile.user.activity,
+            followersCount: Math.max(
+              (previousProfile.user.activity?.followersCount || 1) - 1,
+              0
+            ),
+          },
+        }
+
         queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), {
           ...previousProfile,
-          user: {
-            ...previousProfile.user,
-            relationship: {
-              ...previousProfile.user.relationship,
-              isFollowing: false,
-            },
-          },
+          user: updatedUser,
         })
       }
 
@@ -1013,11 +1092,35 @@ export const useUnfollowUser = () => {
       return { previousProfile, username }
     },
     onSuccess: (data, username) => {
-      if (data.success) {
-        // Only invalidate the essential queries
+      if (data.success && data.data?.relationship) {
+        // Update with actual response data
+        const currentProfile = queryClient.getQueryData(
+          QUERY_KEYS.GET_PUBLIC_PROFILE(username)
+        )
+
+        if (currentProfile?.user) {
+          queryClient.setQueryData(QUERY_KEYS.GET_PUBLIC_PROFILE(username), {
+            ...currentProfile,
+            user: {
+              ...currentProfile.user,
+              relationship: {
+                ...currentProfile.user.relationship,
+                isFollowing: data.data.relationship.isFollowing,
+              },
+              activity: {
+                ...currentProfile.user.activity,
+                followersCount: data.data.relationship.followersCount,
+              },
+            },
+          })
+        }
+
+        // Invalidate related queries
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_FOLLOWING,
-          exact: true,
+        })
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_PROFILE,
         })
 
         console.log('User unfollowed successfully:', data.message)
@@ -1032,13 +1135,6 @@ export const useUnfollowUser = () => {
         )
       }
       console.error('Unfollow user failed:', error)
-    },
-    onSettled: (data, error, username) => {
-      // Only refetch the public profile to ensure consistency
-      queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.GET_PUBLIC_PROFILE(username),
-        exact: true,
-      })
     },
   })
 }
@@ -1207,5 +1303,198 @@ export const useRemoveNotesFromWishlist = () => {
     onError: error => {
       console.error('Remove notes from wishlist failed:', error)
     },
+  })
+}
+
+// ========== SHARING HOOKS ==========
+
+// Mutation to create share link
+export const useCreateShareLink = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.CREATE_SHARE_LINK,
+    mutationFn: shareAPI.createShareLink,
+    onSuccess: (data, variables) => {
+      if (data.success) {
+        // Invalidate share info query for this note
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_SHARE_INFO(variables.noteId),
+        })
+        console.log('Share link created successfully:', data.message)
+      }
+    },
+    onError: error => {
+      console.error('Create share link failed:', error)
+    },
+  })
+}
+
+// Query to get share info
+export const useGetShareInfo = (noteId, enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_SHARE_INFO(noteId),
+    queryFn: () => shareAPI.getShareInfo(noteId),
+    enabled: enabled && !!noteId,
+    retry: 1, // Don't retry too many times for share info
+    refetchOnWindowFocus: false,
+  })
+}
+
+// Mutation to disable share link
+export const useDisableShareLink = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.DISABLE_SHARE_LINK,
+    mutationFn: shareAPI.disableShareLink,
+    onSuccess: (data, noteId) => {
+      if (data.success) {
+        // Invalidate share info query for this note
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_SHARE_INFO(noteId),
+        })
+        console.log('Share link disabled successfully:', data.message)
+      }
+    },
+    onError: error => {
+      console.error('Disable share link failed:', error)
+    },
+  })
+}
+
+// Query to access shared note (public)
+export const useAccessSharedNote = (noteId, token, enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.ACCESS_SHARED_NOTE(noteId, token),
+    queryFn: () => shareAPI.accessSharedNote(noteId, token),
+    enabled: enabled && !!noteId && !!token,
+    retry: (failureCount, error) => {
+      // Never retry on permission, auth, or client errors
+      if (error?.status >= 400 && error?.status < 500) {
+        return false
+      }
+      // Don't retry on token/access related errors
+      if (
+        error?.message?.includes('expired') ||
+        error?.message?.includes('invalid') ||
+        error?.message?.includes('token') ||
+        error?.message?.includes('not accessible') ||
+        error?.message?.includes('requires authentication')
+      ) {
+        return false
+      }
+      return false // Never retry for shared notes - they should work immediately or not at all
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+// Query to get share analytics
+export const useGetShareAnalytics = (noteId, enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_SHARE_ANALYTICS(noteId),
+    queryFn: () => shareAPI.getShareAnalytics(noteId),
+    enabled: enabled && !!noteId,
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time analytics
+    refetchOnWindowFocus: true,
+  })
+}
+
+// ========== WISHLIST SHARING HOOKS ==========
+
+// Mutation to create wishlist share link
+export const useCreateWishlistShareLink = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.CREATE_WISHLIST_SHARE_LINK,
+    mutationFn: wishlistShareAPI.createWishlistShareLink,
+    onSuccess: (data, variables) => {
+      if (data.success) {
+        // Invalidate share info query for this wishlist
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(variables.wishlistId),
+        })
+        console.log('Wishlist share link created successfully:', data.message)
+      }
+    },
+    onError: error => {
+      console.error('Create wishlist share link failed:', error)
+    },
+  })
+}
+
+// Query to get wishlist share info
+export const useGetWishlistShareInfo = (wishlistId, enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(wishlistId),
+    queryFn: () => wishlistShareAPI.getWishlistShareInfo(wishlistId),
+    enabled: enabled && !!wishlistId,
+    retry: 1, // Don't retry too many times for share info
+    refetchOnWindowFocus: false,
+  })
+}
+
+// Mutation to disable wishlist share link
+export const useDisableWishlistShareLink = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.DISABLE_WISHLIST_SHARE_LINK,
+    mutationFn: wishlistShareAPI.disableWishlistShareLink,
+    onSuccess: (data, wishlistId) => {
+      if (data.success) {
+        // Invalidate share info query for this wishlist
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(wishlistId),
+        })
+        console.log('Wishlist share link disabled successfully:', data.message)
+      }
+    },
+    onError: error => {
+      console.error('Disable wishlist share link failed:', error)
+    },
+  })
+}
+
+// Query to access shared wishlist (public)
+export const useAccessSharedWishlist = (wishlistId, token, enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.ACCESS_SHARED_WISHLIST(wishlistId, token),
+    queryFn: () => wishlistShareAPI.accessSharedWishlist(wishlistId, token),
+    enabled: enabled && !!wishlistId && !!token,
+    retry: (failureCount, error) => {
+      // Never retry on permission, auth, or client errors
+      if (error?.status >= 400 && error?.status < 500) {
+        return false
+      }
+      // Don't retry on token/access related errors
+      if (
+        error?.message?.includes('expired') ||
+        error?.message?.includes('invalid') ||
+        error?.message?.includes('token') ||
+        error?.message?.includes('not accessible') ||
+        error?.message?.includes('requires authentication') ||
+        error?.message?.includes('private')
+      ) {
+        return false
+      }
+      return false // Never retry for shared content - they should work immediately or not at all
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+// Query to get wishlist share analytics
+export const useGetWishlistShareAnalytics = (wishlistId, enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_ANALYTICS(wishlistId),
+    queryFn: () => wishlistShareAPI.getWishlistShareAnalytics(wishlistId),
+    enabled: enabled && !!wishlistId,
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time analytics
+    refetchOnWindowFocus: true,
   })
 }

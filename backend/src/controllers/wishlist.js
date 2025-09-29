@@ -249,20 +249,41 @@ export const getWishlistById = async (req, res) => {
          .slice(skip, skip + parseInt(limit))
          .map(item => item.note);
 
-      // Populate the notes
+      // Populate the notes with fields required by NoteCard component
       const populatedNotes = await Note.find({
-         _id: { $in: paginatedNoteIds }
+         _id: { $in: paginatedNoteIds },
+         status: 'approved', // Only show approved notes
+         visibility: { $ne: 'private' } // Exclude private notes from wishlists
       })
-         .select('title description subject academic file.viewUrl file.thumbnailUrl uploadDate social.views social.downloads social.likes tags')
+         .select('title subject file.viewUrl file.downloadUrl file.driveFileId file.thumbnailUrl social.views social.likes')
          .populate('uploader', 'username profile.firstName profile.lastName profile.avatar')
          .lean();
 
-      // Maintain the order and add addedAt timestamp
+      // Maintain the order and format for NoteCard component
       const orderedNotes = paginatedNoteIds.map(noteId => {
          const note = populatedNotes.find(n => n._id.toString() === noteId.toString());
+         if (!note) return null;
+
          const wishlistItem = wishlist.notes.find(item => item.note.toString() === noteId.toString());
+
          return {
-            ...note,
+            _id: note._id,
+            title: note.title,
+            subject: note.subject?.name || note.subject,
+            viewUrl: note.file.viewUrl,
+            downloadUrl: note.file.downloadUrl,
+            driveFileId: note.file.driveFileId,
+            thumbnailUrl: note.file.thumbnailUrl,
+            stats: {
+               views: note.social.views || 0,
+               likes: note.social.likes?.length || 0,
+               isLiked: note.social.likes?.some(like => like.user.toString() === req.user._id.toString()) || false
+            },
+            uploader: {
+               username: note.uploader.username,
+               name: note.uploader.profile.firstName + ' ' + note.uploader.profile.lastName,
+               avatar: note.uploader.profile.avatar
+            },
             addedAt: wishlistItem?.addedAt
          };
       }).filter(Boolean);

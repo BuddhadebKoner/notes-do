@@ -8,6 +8,7 @@ import {
   SignUpButton,
 } from '@clerk/clerk-react'
 import { Button } from '../components/ui/button'
+import { AnimatedBuyButton } from '../components/ui/animated-buy-button'
 import { Upload, User } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -25,12 +26,9 @@ const Navigation = () => {
             >
               Notes Doo
             </Link>
-            <div className='hidden md:flex space-x-1'>
-              <Link
-                to='/buy-notes'
-                className='text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors'
-              >
-                Buy Notes
+            <div className='hidden md:flex space-x-4 items-center'>
+              <Link to='/buy-notes'>
+                <AnimatedBuyButton>Buy Notes</AnimatedBuyButton>
               </Link>
               <Link
                 to='/notes'
@@ -49,6 +47,7 @@ const Navigation = () => {
                 asChild
                 size='default'
                 className='bg-black hover:bg-gray-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105'
+                data-tour='upload'
               >
                 <Link to='/upload' className='flex items-center space-x-2'>
                   <Upload className='h-4 w-4' />

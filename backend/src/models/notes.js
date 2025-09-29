@@ -78,53 +78,60 @@ const noteSchema = new mongoose.Schema({
       maxlength: 50
    }],
 
-   // Academic Classification
+   // Academic Classification (Target Audience - Optional)
    academic: {
       university: {
          type: String,
          required: true,
          trim: true,
          maxlength: 100,
-         index: true
+         index: true,
+         default: 'ALL' // 'ALL' means academic independent
       },
       department: {
          type: String,
          required: true,
          trim: true,
          maxlength: 100,
-         index: true
+         index: true,
+         default: 'ALL' // 'ALL' means academic independent
       },
       course: {
          code: {
             type: String,
             required: true,
             trim: true,
-            maxlength: 20
+            maxlength: 20,
+            default: 'ALL'
          },
          name: {
             type: String,
             required: true,
             trim: true,
-            maxlength: 100
+            maxlength: 100,
+            default: 'General Course'
          },
          credits: {
             type: Number,
-            min: 1,
-            max: 10
+            min: 0,
+            max: 10,
+            default: 3
          }
       },
       semester: {
          type: Number,
          required: true,
-         min: 1,
+         min: 0, // 0 means all semesters
          max: 12,
-         index: true
+         index: true,
+         default: 0
       },
       academicYear: {
          type: String,
          required: true,
          trim: true,
-         maxlength: 20
+         maxlength: 20,
+         default: '2024-25'
       },
       degree: {
          type: String,
@@ -346,8 +353,8 @@ const noteSchema = new mongoose.Schema({
    // Access Control & Visibility
    visibility: {
       type: String,
-      enum: ['public', 'university', 'department', 'private'],
-      default: 'university',
+      enum: ['public', 'private'],
+      default: 'private',
       index: true
    },
    permissions: {
@@ -441,6 +448,64 @@ const noteSchema = new mongoose.Schema({
       }
    },
 
+   // Sharing & Private Links
+   sharing: {
+      // Private share link configuration
+      shareToken: {
+         type: String,
+         unique: true,
+         sparse: true, // Allows null values while maintaining uniqueness
+         index: true
+      },
+      shareTokenExpiry: {
+         type: Date
+      },
+      isShareEnabled: {
+         type: Boolean,
+         default: false
+      },
+      shareCreatedAt: {
+         type: Date
+      },
+      shareUpdatedAt: {
+         type: Date
+      },
+      // Share analytics
+      shareStats: {
+         totalViews: {
+            type: Number,
+            default: 0
+         },
+         uniqueUsers: {
+            type: Number,
+            default: 0
+         },
+         lastAccessed: {
+            type: Date
+         },
+         accessHistory: [{
+            user: {
+               type: mongoose.Schema.Types.ObjectId,
+               ref: 'User'
+            },
+            accessedAt: {
+               type: Date,
+               default: Date.now
+            },
+            ipAddress: {
+               type: String
+            },
+            userAgent: {
+               type: String
+            },
+            location: {
+               country: String,
+               city: String
+            }
+         }]
+      }
+   },
+
    // Analytics & Tracking
    analytics: {
       viewHistory: [{
@@ -500,6 +565,8 @@ noteSchema.index({ 'social.views': -1, 'social.downloads': -1 });
 noteSchema.index({ 'social.rating.averageRating': -1 });
 noteSchema.index({ tags: 1 });
 noteSchema.index({ 'content.keywords': 1 });
+noteSchema.index({ 'sharing.shareToken': 1 });
+noteSchema.index({ 'sharing.isShareEnabled': 1, 'sharing.shareTokenExpiry': 1 });
 
 // Text indexes for search functionality
 noteSchema.index({
@@ -643,12 +710,53 @@ noteSchema.statics.findPopular = function (limit = 10) {
 
 // Static method to find by academic criteria
 noteSchema.statics.findByAcademic = function (university, department, semester) {
-   return this.find({
-      'academic.university': new RegExp(university, 'i'),
-      'academic.department': new RegExp(department, 'i'),
-      'academic.semester': semester,
-      status: 'approved'
-   })
+   const query = { status: 'approved' };
+
+   // Include notes that match the criteria OR are academic independent ('ALL')
+   if (university) {
+      query.$or = [
+         { 'academic.university': new RegExp(university, 'i') },
+         { 'academic.university': 'ALL' }
+      ];
+   }
+
+   if (department) {
+      const deptQuery = [
+         { 'academic.department': new RegExp(department, 'i') },
+         { 'academic.department': 'ALL' }
+      ];
+
+      if (query.$or) {
+         query.$and = [
+            { $or: query.$or },
+            { $or: deptQuery }
+         ];
+         delete query.$or;
+      } else {
+         query.$or = deptQuery;
+      }
+   }
+
+   if (semester) {
+      const semesterQuery = [
+         { 'academic.semester': semester },
+         { 'academic.semester': 0 } // 0 means all semesters
+      ];
+
+      if (query.$and) {
+         query.$and.push({ $or: semesterQuery });
+      } else if (query.$or) {
+         query.$and = [
+            { $or: query.$or },
+            { $or: semesterQuery }
+         ];
+         delete query.$or;
+      } else {
+         query.$or = semesterQuery;
+      }
+   }
+
+   return this.find(query)
       .sort({ createdAt: -1 })
       .populate('uploader', 'username profile.firstName profile.lastName');
 };
@@ -660,21 +768,47 @@ noteSchema.statics.searchNotes = function (searchTerm, filters = {}) {
       status: 'approved'
    };
 
-   // Apply filters
+   const andConditions = [];
+
+   // Apply filters - include academic independent notes ('ALL' values)
    if (filters.university) {
-      query['academic.university'] = new RegExp(filters.university, 'i');
+      andConditions.push({
+         $or: [
+            { 'academic.university': new RegExp(filters.university, 'i') },
+            { 'academic.university': 'ALL' }
+         ]
+      });
    }
+
    if (filters.department) {
-      query['academic.department'] = new RegExp(filters.department, 'i');
+      andConditions.push({
+         $or: [
+            { 'academic.department': new RegExp(filters.department, 'i') },
+            { 'academic.department': 'ALL' }
+         ]
+      });
    }
+
    if (filters.semester) {
-      query['academic.semester'] = filters.semester;
+      andConditions.push({
+         $or: [
+            { 'academic.semester': filters.semester },
+            { 'academic.semester': 0 } // 0 means all semesters
+         ]
+      });
    }
+
    if (filters.category) {
       query['subject.category'] = filters.category;
    }
+
    if (filters.uploader) {
       query.uploader = filters.uploader;
+   }
+
+   // Add AND conditions if any
+   if (andConditions.length > 0) {
+      query.$and = andConditions;
    }
 
    return this.find(query)

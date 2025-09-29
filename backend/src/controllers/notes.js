@@ -236,15 +236,15 @@ export const uploadNote = async (req, res) => {
          difficulty = 'intermediate',
          tags = [],
          chapters = [],
-         visibility = 'university',
+         visibility = 'public',
          googleDriveToken
       } = req.body;
 
-      // Validate required fields
-      if (!title || !description || !university || !department || !subject || !semester) {
+      // Validate required fields (only title, description, and subject are required now)
+      if (!title || !description || !subject) {
          return res.status(400).json({
             success: false,
-            message: 'Missing required fields: title, description, university, department, subject, semester'
+            message: 'Missing required fields: title, description, and subject are required'
          });
       }
 
@@ -347,16 +347,16 @@ export const uploadNote = async (req, res) => {
          description,
          tags: parsedTags,
 
-         // Academic information (nested object)
+         // Academic information (nested object) - use default values if not provided
          academic: {
-            university,
-            department,
+            university: university || 'ALL', // 'ALL' indicates academic independent  
+            department: department || 'ALL',
             course: {
-               code: course || `${subject.substring(0, 10).toUpperCase()}${semester}`,
-               name: course || `${subject} - Semester ${semester}`,
+               code: course || `${subject.substring(0, 10).toUpperCase()}${semester || 'ALL'}`,
+               name: course || `${subject}${semester ? ` - Semester ${semester}` : ' - All Semesters'}`,
                credits: 3 // default credits
             },
-            semester: parseInt(semester),
+            semester: semester ? parseInt(semester) : 0, // 0 indicates all semesters
             academicYear: academicYear || '2024-25',
             degree: 'bachelor' // default degree
          },
@@ -528,7 +528,7 @@ export const getNotesFeed = async (req, res) => {
       // Match stage - filter documents (only show public notes)
       const matchStage = {
          status: 'approved',
-         visibility: 'public' // Only show public notes
+         visibility: 'public' // Only show public notes in feed
       };
 
       // Apply additional filters (removed university/department filters)
@@ -544,7 +544,12 @@ export const getNotesFeed = async (req, res) => {
       if (semester) {
          const semesterNum = parseInt(semester);
          if (semesterNum >= 1 && semesterNum <= 12) {
-            matchStage['academic.semester'] = semesterNum;
+            // Include both specific semester and academic independent notes (semester: 0)
+            matchStage.$or = matchStage.$or || [];
+            matchStage.$or.push(
+               { 'academic.semester': semesterNum },
+               { 'academic.semester': 0 } // Academic independent
+            );
          }
       }
 
@@ -781,7 +786,7 @@ export const getNoteById = async (req, res) => {
       // Check ownership
       isOwner = currentUserId && note.uploader._id.toString() === currentUserId;
 
-      // Determine access based on visibility
+      // Determine access based on visibility (simplified to public/private only)
       switch (note.visibility) {
          case 'public':
             hasAccess = true;
@@ -791,41 +796,14 @@ export const getNoteById = async (req, res) => {
             canLike = !!currentUserId; // Must be logged in to like
             break;
 
-         case 'university':
-            if (currentUser && currentUser.academic?.university) {
-               // Check if user belongs to the same university
-               if (currentUser.academic.university === note.academic.university) {
-                  hasAccess = true;
-                  canView = true;
-                  canDownload = note.permissions.canDownload;
-                  canComment = true; // Can comment if from same university
-                  canLike = true;
-               }
-            }
-            break;
-
-         case 'department':
-            if (currentUser && currentUser.academic?.university && currentUser.academic?.department) {
-               // Check if user belongs to the same university and department
-               if (currentUser.academic.university === note.academic.university &&
-                  currentUser.academic.department === note.academic.department) {
-                  hasAccess = true;
-                  canView = true;
-                  canDownload = note.permissions.canDownload;
-                  canComment = true; // Can comment if from same department
-                  canLike = true;
-               }
-            }
-            break;
-
          case 'private':
-            // Only owner can access private notes
+            // Only owner can access private notes directly
             if (isOwner) {
                hasAccess = true;
                canView = true;
                canDownload = note.permissions.canDownload;
-               canComment = false; // No comments on private notes
-               canLike = false; // No likes on private notes
+               canComment = true; // Owner can comment on their own notes
+               canLike = false; // Owner cannot like their own notes
             }
             break;
 
@@ -833,12 +811,26 @@ export const getNoteById = async (req, res) => {
             hasAccess = false;
       }
 
-      // If no access, return not found
+      // If no access, return appropriate error based on visibility
       if (!hasAccess) {
-         return res.status(404).json({
-            success: false,
-            message: 'Note not found or not accessible'
-         });
+         if (note.visibility === 'private') {
+            return res.status(403).json({
+               success: false,
+               message: 'This note is private and not accessible',
+               errorType: 'PRIVATE_NOTE',
+               noteTitle: note.title,
+               uploader: {
+                  name: `${note.uploader.profile.firstName} ${note.uploader.profile.lastName}`.trim(),
+                  username: note.uploader.username
+               }
+            });
+         } else {
+            return res.status(404).json({
+               success: false,
+               message: 'Note not found or not accessible',
+               errorType: 'NOT_FOUND'
+            });
+         }
       }
 
       // Increment view count if user has access
