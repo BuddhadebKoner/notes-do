@@ -17,22 +17,26 @@ import {
   RefreshCw,
   BarChart3,
   AlertTriangle,
+  FolderOpen,
 } from 'lucide-react'
 import {
-  useCreateShareLink,
-  useGetShareInfo,
-  useDisableShareLink,
+  useCreateWishlistShareLink,
+  useGetWishlistShareInfo,
+  useDisableWishlistShareLink,
 } from '../../lib/react-query/queriesAndMutation.js'
 
-const ShareNoteDialog = ({ isOpen, onClose, note }) => {
+const ShareWishlistDialog = ({ isOpen, onClose, wishlist }) => {
   const [copied, setCopied] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
   const [showAnalytics, setShowAnalytics] = useState(false)
 
   // API hooks
-  const createShareLinkMutation = useCreateShareLink()
-  const getShareInfoQuery = useGetShareInfo(note?._id, isOpen && !!note?._id)
-  const disableShareLinkMutation = useDisableShareLink()
+  const createShareLinkMutation = useCreateWishlistShareLink()
+  const getShareInfoQuery = useGetWishlistShareInfo(
+    wishlist?._id,
+    isOpen && !!wishlist?._id
+  )
+  const disableShareLinkMutation = useDisableWishlistShareLink()
 
   // Update share URL when share info changes
   useEffect(() => {
@@ -44,29 +48,29 @@ const ShareNoteDialog = ({ isOpen, onClose, note }) => {
   }, [getShareInfoQuery.data])
 
   const handleCreateShareLink = async (expiryDays = 30) => {
-    if (!note?._id) return
+    if (!wishlist?._id) return
 
     try {
       await createShareLinkMutation.mutateAsync({
-        noteId: note._id,
+        wishlistId: wishlist._id,
         expiryDays,
       })
       // Refetch share info to get updated data
       getShareInfoQuery.refetch()
     } catch (error) {
-      console.error('Failed to create share link:', error)
+      console.error('Failed to create wishlist share link:', error)
     }
   }
 
   const handleDisableShareLink = async () => {
-    if (!note?._id) return
+    if (!wishlist?._id) return
 
     try {
-      await disableShareLinkMutation.mutateAsync(note._id)
+      await disableShareLinkMutation.mutateAsync(wishlist._id)
       setShareUrl('')
       getShareInfoQuery.refetch()
     } catch (error) {
-      console.error('Failed to disable share link:', error)
+      console.error('Failed to disable wishlist share link:', error)
     }
   }
 
@@ -96,10 +100,10 @@ const ShareNoteDialog = ({ isOpen, onClose, note }) => {
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <Share2 className='h-5 w-5' />
-            Private Share Link
+            Share Wishlist
           </DialogTitle>
           <DialogDescription>
-            Create a secure, trackable link for "{note?.title}"
+            Create a secure, trackable link for "{wishlist?.name}"
           </DialogDescription>
         </DialogHeader>
 
@@ -108,7 +112,7 @@ const ShareNoteDialog = ({ isOpen, onClose, note }) => {
           {!hasActiveLink ? (
             <div className='space-y-4'>
               <div className='text-center p-6 border-2 border-dashed border-muted-foreground/25 rounded-lg'>
-                <Share2 className='h-12 w-12 mx-auto mb-3 text-muted-foreground' />
+                <FolderOpen className='h-12 w-12 mx-auto mb-3 text-muted-foreground' />
                 <h3 className='font-medium mb-2'>No Active Share Link</h3>
                 <p className='text-sm text-muted-foreground mb-4'>
                   Create a secure, private link that tracks access and expires
@@ -277,31 +281,41 @@ const ShareNoteDialog = ({ isOpen, onClose, note }) => {
             </>
           )}
 
-          {/* Note Info */}
+          {/* Wishlist Info */}
           <div className='p-3 bg-muted rounded-lg'>
-            <h4 className='font-medium text-sm mb-2'>{note?.title}</h4>
+            <div className='flex items-center gap-2 mb-2'>
+              <div
+                className={`w-3 h-3 rounded-full`}
+                style={{
+                  backgroundColor: `var(--${wishlist?.color || 'blue'}-500)`,
+                }}
+              />
+              <h4 className='font-medium text-sm'>{wishlist?.name}</h4>
+            </div>
             <div className='flex items-center gap-2'>
-              <Badge
-                variant={
-                  note?.visibility === 'public' ? 'default' : 'secondary'
-                }
-              >
-                {note?.visibility === 'public' ? 'Public' : 'Private'}
+              <Badge variant={wishlist?.isPrivate ? 'secondary' : 'default'}>
+                {wishlist?.isPrivate ? 'Private' : 'Public'}
               </Badge>
               <span className='text-xs text-muted-foreground'>
-                Uploaded:{' '}
-                {note?.uploadDate
-                  ? new Date(note.uploadDate).toLocaleDateString()
+                {wishlist?.notesCount || 0} notes
+              </span>
+              <span className='text-xs text-muted-foreground'>
+                Created:{' '}
+                {wishlist?.createdAt
+                  ? new Date(wishlist.createdAt).toLocaleDateString()
                   : 'N/A'}
               </span>
             </div>
           </div>
 
           {/* Security Notice */}
-          <div className='text-xs text-muted-foreground bg-blue-50 p-3 rounded-lg border border-blue-200'>
+          <div className='text-xs text-muted-foreground bg-purple-50 p-3 rounded-lg border border-purple-200'>
             <strong>🔒 Secure Sharing:</strong> This link is private and
-            trackable. Only people with this link can access your note. You can
-            disable it anytime.
+            trackable.
+            {wishlist?.isPrivate
+              ? ' Only authenticated users can access private wishlists.'
+              : ' Anonymous users can only see public notes in this wishlist.'}{' '}
+            You can disable it anytime.
           </div>
         </div>
       </DialogContent>
@@ -309,4 +323,4 @@ const ShareNoteDialog = ({ isOpen, onClose, note }) => {
   )
 }
 
-export default ShareNoteDialog
+export default ShareWishlistDialog

@@ -28,16 +28,20 @@ export const useFollowUserLogic = targetUser => {
 
   // Remove local loading state - use mutation loading states instead
 
-  // Determine if currently following
+  // Determine if currently following with better state management
   const isFollowing = useMemo(() => {
-    if (!targetUser || !profileData?.user || !isLoggedIn) return false
+    if (!targetUser || !isLoggedIn) return false
+
+    // During mutation loading, show optimistic state
+    if (followMutation.isLoading) return true
+    if (unfollowMutation.isLoading) return false
 
     // Check from target user's relationship data first (most reliable)
     if (targetUser.relationship?.isFollowing !== undefined) {
       return targetUser.relationship.isFollowing
     }
 
-    // Fallback: check current user's following list
+    // Fallback: check current user's following list if available
     if (profileData?.user?.activity?.following) {
       const currentUserFollowing = profileData.user.activity.following || []
       return currentUserFollowing.some(
@@ -46,7 +50,13 @@ export const useFollowUserLogic = targetUser => {
     }
 
     return false
-  }, [targetUser, profileData, isLoggedIn])
+  }, [
+    targetUser,
+    profileData,
+    isLoggedIn,
+    followMutation.isLoading,
+    unfollowMutation.isLoading,
+  ])
 
   // Check if can follow (not own profile, user exists, etc.)
   const canFollow = useMemo(() => {
@@ -69,20 +79,27 @@ export const useFollowUserLogic = targetUser => {
       return
     }
 
-    if (followMutation.isLoading) return
+    if (followMutation.isLoading || unfollowMutation.isLoading) return
 
     try {
-      await followMutation.mutateAsync(targetUser.username)
+      const result = await followMutation.mutateAsync(targetUser.username)
 
-      // Show success message
-      toast.success(
-        `You are now following ${targetUser.name || targetUser.username}`
-      )
+      // Show success message from backend response
+      if (result?.message) {
+        toast.success(result.message)
+      } else {
+        toast.success(
+          `You are now following ${targetUser.name || targetUser.username}`
+        )
+      }
     } catch (error) {
       console.error('Follow error:', error)
 
-      // Show specific error message
-      const errorMessage = error.message || 'Failed to follow user'
+      // Show specific error message from backend
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to follow user'
       toast.error(errorMessage)
     }
   }
@@ -97,16 +114,24 @@ export const useFollowUserLogic = targetUser => {
     if (followMutation.isLoading || unfollowMutation.isLoading) return
 
     try {
-      // No need for setLocalLoading, use mutation loading state instead
-      await unfollowMutation.mutateAsync(targetUser.username)
+      const result = await unfollowMutation.mutateAsync(targetUser.username)
 
-      // Show success message
-      toast.success(`You unfollowed ${targetUser.name || targetUser.username}`)
+      // Show success message from backend response
+      if (result?.message) {
+        toast.success(result.message)
+      } else {
+        toast.success(
+          `You unfollowed ${targetUser.name || targetUser.username}`
+        )
+      }
     } catch (error) {
       console.error('Unfollow error:', error)
 
-      // Show specific error message
-      const errorMessage = error.message || 'Failed to unfollow user'
+      // Show specific error message from backend
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to unfollow user'
       toast.error(errorMessage)
     }
   }

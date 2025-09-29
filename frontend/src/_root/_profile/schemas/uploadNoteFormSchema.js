@@ -32,14 +32,14 @@ export const uploadNoteFormSchema = z.object({
     .min(2, 'Subject must be at least 2 characters')
     .max(100, 'Subject must be less than 100 characters'),
 
-  // Academic Information (required)
-  university: z.string().min(1, 'Please select a university'),
+  // Target Audience (optional - helps users find relevant notes)
+  university: z.string().optional(),
 
-  degreeType: z.string().min(1, 'Please select a degree type').optional(),
+  degreeType: z.string().optional(),
 
-  department: z.string().min(1, 'Please select a department'),
+  department: z.string().optional(),
 
-  semester: z.string().min(1, 'Please select a semester'),
+  semester: z.string().optional(),
 
   // Optional fields with defaults
   graduationYear: z.string().optional(),
@@ -92,17 +92,13 @@ export const defaultUploadValues = {
   description: '',
   subject: '',
   university: '',
-  degreeType: 'bachelor',
+  degreeType: '',
   department: '',
   semester: '',
   graduationYear: '',
   academicYear: '2024-25',
   category: 'lecture-notes',
-  difficulty: 'intermediate',
-  visibility: 'university',
-  tags: '',
 }
-
 // Category options for select
 export const categoryOptions = [
   { value: 'lecture-notes', label: 'Lecture Notes' },

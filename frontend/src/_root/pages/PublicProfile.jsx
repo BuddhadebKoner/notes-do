@@ -45,7 +45,7 @@ import {
 const PublicProfile = () => {
   const { username } = useParams()
   const navigate = useNavigate()
-  const { user: clerkUser } = useUser()
+  const { user: clerkUser, isLoaded: isClerkLoaded } = useUser()
 
   // State for confirmation dialog
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -61,7 +61,7 @@ const PublicProfile = () => {
   // Extract user data from the response
   const userData = profileData?.user
 
-  // Follow logic hook
+  // Always call the follow logic hook, let it handle the conditions internally
   const {
     isFollowing,
     canFollow: canFollowUser,
@@ -69,7 +69,7 @@ const PublicProfile = () => {
     toggleFollow,
     error: followError,
   } = useFollowUserLogic(
-    userData
+    isClerkLoaded && userData
       ? {
           id: userData.id,
           username: userData.username,
@@ -78,9 +78,7 @@ const PublicProfile = () => {
           privacy: userData.privacy,
         }
       : null
-  )
-
-  // Handle follow action with confirmation
+  ) // Handle follow action with confirmation
   const handleFollow = async () => {
     const action = isFollowing ? 'unfollow' : 'follow'
     setConfirmationAction(action)
@@ -126,7 +124,8 @@ const PublicProfile = () => {
     }
   }
 
-  if (loading) {
+  // Show loading if Clerk is not loaded or profile is loading
+  if (!isClerkLoaded || loading) {
     return (
       <div className='max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8'>
         <div className='space-y-6'>

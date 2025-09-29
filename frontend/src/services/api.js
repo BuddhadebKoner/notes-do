@@ -451,10 +451,160 @@ export const commentsAPI = {
   },
 }
 
+// Share API services
+export const shareAPI = {
+  // Create share link for a note
+  createShareLink: async ({ noteId, expiryDays = 30 }) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        `${API_ENDPOINTS.SHARE.CREATE_LINK}/${noteId}/share`,
+        { expiryDays },
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Get share info for a note
+  getShareInfo: async noteId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.get(
+        `${API_ENDPOINTS.SHARE.GET_INFO}/${noteId}/share-info`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Disable share link for a note
+  disableShareLink: async noteId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.delete(
+        `${API_ENDPOINTS.SHARE.DISABLE_LINK}/${noteId}/share`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Access shared note (public endpoint)
+  accessSharedNote: async (noteId, token) => {
+    try {
+      // This endpoint might be accessed by non-authenticated users
+      const response = await api.get(
+        `${API_ENDPOINTS.SHARE.ACCESS_NOTE}/${noteId}/access?token=${token}`,
+        { skipAuth: true } // Skip auth for this request
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Get share analytics for a note
+  getShareAnalytics: async noteId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.get(
+        `${API_ENDPOINTS.SHARE.GET_ANALYTICS}/${noteId}/analytics`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+}
+
+// Wishlist Share API services
+export const wishlistShareAPI = {
+  // Create share link for a wishlist
+  createWishlistShareLink: async ({ wishlistId, expiryDays = 30 }) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        `${API_ENDPOINTS.WISHLIST_SHARE.CREATE_LINK}/${wishlistId}/share`,
+        { expiryDays },
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Get share info for a wishlist
+  getWishlistShareInfo: async wishlistId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.get(
+        `${API_ENDPOINTS.WISHLIST_SHARE.GET_INFO}/${wishlistId}/share-info`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Disable share link for a wishlist
+  disableWishlistShareLink: async wishlistId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.delete(
+        `${API_ENDPOINTS.WISHLIST_SHARE.DISABLE_LINK}/${wishlistId}/share`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Access shared wishlist (public endpoint)
+  accessSharedWishlist: async (wishlistId, token) => {
+    try {
+      // This endpoint might be accessed by non-authenticated users
+      const response = await api.get(
+        `${API_ENDPOINTS.WISHLIST_SHARE.ACCESS_WISHLIST}/${wishlistId}/access?token=${token}`,
+        { skipAuth: true } // Skip auth for this request initially
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  // Get share analytics for a wishlist
+  getWishlistShareAnalytics: async wishlistId => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.get(
+        `${API_ENDPOINTS.WISHLIST_SHARE.GET_ANALYTICS}/${wishlistId}/analytics`,
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+}
+
 export default {
   auth: authAPI,
   profile: profileAPI,
   notes: notesAPI,
   comments: commentsAPI,
+  share: shareAPI,
+  wishlistShare: wishlistShareAPI,
   helpers: apiHelpers,
 }

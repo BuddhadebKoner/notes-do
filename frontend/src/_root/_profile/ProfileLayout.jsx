@@ -37,13 +37,13 @@ import {
 } from 'lucide-react'
 
 const ProfileLayout = () => {
-  const { user: clerkUser } = useUser()
+  const { user: clerkUser, isLoaded: isClerkLoaded } = useUser()
   const { getToken } = useClerkAuth()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showTour, setShowTour] = useState(false)
 
-  // Automatically fetch profile data with user auto-creation when logged in
+  // Always call the hook, but control when it fetches data
   const {
     data: profileData,
     isLoading: profileLoading,
@@ -54,7 +54,9 @@ const ProfileLayout = () => {
     wasUserJustCreated,
     needsUserCreation,
     createUserManually,
-  } = useProfileWithAutoCreation()
+  } = useProfileWithAutoCreation({
+    enabled: isClerkLoaded && !!clerkUser,
+  })
 
   // Handle role selection from onboarding
   const handleRoleSelect = role => {
@@ -175,13 +177,17 @@ const ProfileLayout = () => {
     return location.pathname.startsWith(path)
   }
 
-  // Loading state
-  if (isInitializing) {
+  // Loading state - show loading if Clerk is not loaded or if profile is initializing
+  if (!isClerkLoaded || (isClerkLoaded && clerkUser && isInitializing)) {
     return (
       <div className='min-h-screen flex items-center justify-center bg-gray-50 px-4'>
         <div className='text-center max-w-md mx-auto p-4 sm:p-6'>
           <div className='animate-spin rounded-full h-10 sm:h-12 w-10 sm:w-12 border-b-2 border-blue-600 mx-auto mb-3 sm:mb-4'></div>
-          {isCreatingUser ? (
+          {!isClerkLoaded ? (
+            <p className='text-gray-600 text-sm sm:text-base'>
+              Loading authentication...
+            </p>
+          ) : isCreatingUser ? (
             <>
               <p className='text-gray-600 mb-2 text-sm sm:text-base'>
                 Setting up your profile...

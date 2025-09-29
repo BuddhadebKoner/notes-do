@@ -242,6 +242,58 @@ const userSchema = new mongoose.Schema({
          updatedAt: {
             type: Date,
             default: Date.now
+         },
+         // Sharing & Private Links
+         sharing: {
+            shareToken: {
+               type: String,
+               unique: true,
+               sparse: true, // Allows null values while maintaining uniqueness
+               index: true
+            },
+            shareTokenExpiry: {
+               type: Date
+            },
+            isShareEnabled: {
+               type: Boolean,
+               default: false
+            },
+            shareCreatedAt: {
+               type: Date
+            },
+            shareUpdatedAt: {
+               type: Date
+            },
+            // Share analytics
+            shareStats: {
+               totalViews: {
+                  type: Number,
+                  default: 0
+               },
+               uniqueUsers: {
+                  type: Number,
+                  default: 0
+               },
+               lastAccessed: {
+                  type: Date
+               },
+               accessHistory: [{
+                  user: {
+                     type: mongoose.Schema.Types.ObjectId,
+                     ref: 'User'
+                  },
+                  accessedAt: {
+                     type: Date,
+                     default: Date.now
+                  },
+                  ipAddress: {
+                     type: String
+                  },
+                  userAgent: {
+                     type: String
+                  }
+               }]
+            }
          }
       }],
       following: [{
@@ -344,6 +396,7 @@ userSchema.index({ clerkId: 1 });
 userSchema.index({ 'academic.university': 1, 'academic.department': 1 });
 userSchema.index({ 'account.isActive': 1, 'account.isVerified': 1 });
 userSchema.index({ createdAt: -1 });
+userSchema.index({ 'activity.wishlists.sharing.shareToken': 1 });
 
 // Virtual for full name
 userSchema.virtual('profile.fullName').get(function () {
@@ -372,6 +425,121 @@ userSchema.statics.findByAcademicInfo = function (university, department) {
       'academic.department': new RegExp(department, 'i'),
       'account.isActive': true
    });
+};
+
+// Instance method to check if user is following another user
+userSchema.methods.isFollowing = function (userId) {
+   return this.activity.following.some(followingId =>
+      followingId.toString() === userId.toString()
+   );
+};
+
+// Instance method to check if user is followed by another user
+userSchema.methods.isFollowedBy = function (userId) {
+   return this.activity.followers.some(followerId =>
+      followerId.toString() === userId.toString()
+   );
+};
+
+// Static method to get relationship between two users efficiently
+userSchema.statics.getRelationship = async function (requestingUserId, targetUserId) {
+   if (!requestingUserId || !targetUserId) {
+      return { isFollowing: false, isFollowedBy: false };
+   }
+
+   // Use aggregation to check relationship in a single query
+   const result = await this.aggregate([
+      {
+         $match: { _id: new mongoose.Types.ObjectId(requestingUserId) }
+      },
+      {
+         $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: 'activity.following',
+            as: 'isFollowedBy'
+         }
+      },
+      {
+         $project: {
+            isFollowing: {
+               $in: [new mongoose.Types.ObjectId(targetUserId), '$activity.following']
+            },
+            isFollowedBy: {
+               $gt: [
+                  {
+                     $size: {
+                        $filter: {
+                           input: '$isFollowedBy',
+                           cond: { $eq: ['$$this._id', new mongoose.Types.ObjectId(targetUserId)] }
+                        }
+                     }
+                  },
+                  0
+               ]
+            }
+         }
+      }
+   ]);
+
+   return result[0] || { isFollowing: false, isFollowedBy: false };
+};
+
+// Static method to follow/unfollow with atomic operations and return updated relationship
+userSchema.statics.toggleFollow = async function (followerId, followeeId, action = 'follow') {
+   const session = await mongoose.startSession();
+
+   try {
+      await session.withTransaction(async () => {
+         if (action === 'follow') {
+            // Add to following and followers arrays atomically
+            await Promise.all([
+               this.findByIdAndUpdate(
+                  followerId,
+                  { $addToSet: { 'activity.following': followeeId } },
+                  { session }
+               ),
+               this.findByIdAndUpdate(
+                  followeeId,
+                  { $addToSet: { 'activity.followers': followerId } },
+                  { session }
+               )
+            ]);
+         } else {
+            // Remove from following and followers arrays atomically
+            await Promise.all([
+               this.findByIdAndUpdate(
+                  followerId,
+                  { $pull: { 'activity.following': followeeId } },
+                  { session }
+               ),
+               this.findByIdAndUpdate(
+                  followeeId,
+                  { $pull: { 'activity.followers': followerId } },
+                  { session }
+               )
+            ]);
+         }
+      });
+
+      // Get updated counts efficiently
+      const [followerUser, followeeUser] = await Promise.all([
+         this.findById(followerId).select('activity.following').lean(),
+         this.findById(followeeId).select('activity.followers').lean()
+      ]);
+
+      return {
+         success: true,
+         isFollowing: action === 'follow',
+         followingCount: followerUser?.activity?.following?.length || 0,
+         followersCount: followeeUser?.activity?.followers?.length || 0
+      };
+
+   } catch (error) {
+      throw error;
+   } finally {
+      await session.endSession();
+   }
 };
 
 export default mongoose.model('User', userSchema);

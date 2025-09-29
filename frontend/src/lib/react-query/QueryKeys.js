@@ -76,4 +76,27 @@ export const QUERY_KEYS = {
   LIKE_COMMENT: ['comments', 'like'],
   UNLIKE_COMMENT: ['comments', 'unlike'],
   ADD_REPLY: ['comments', 'reply'],
+
+  // Share related queries
+  CREATE_SHARE_LINK: ['share', 'create'],
+  GET_SHARE_INFO: noteId => ['share', 'info', noteId],
+  DISABLE_SHARE_LINK: ['share', 'disable'],
+  ACCESS_SHARED_NOTE: (noteId, token) => ['share', 'access', noteId, token],
+  GET_SHARE_ANALYTICS: noteId => ['share', 'analytics', noteId],
+
+  // Wishlist Share related queries
+  CREATE_WISHLIST_SHARE_LINK: ['wishlistShare', 'create'],
+  GET_WISHLIST_SHARE_INFO: wishlistId => ['wishlistShare', 'info', wishlistId],
+  DISABLE_WISHLIST_SHARE_LINK: ['wishlistShare', 'disable'],
+  ACCESS_SHARED_WISHLIST: (wishlistId, token) => [
+    'wishlistShare',
+    'access',
+    wishlistId,
+    token,
+  ],
+  GET_WISHLIST_SHARE_ANALYTICS: wishlistId => [
+    'wishlistShare',
+    'analytics',
+    wishlistId,
+  ],
 }
