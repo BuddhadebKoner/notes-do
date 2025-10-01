@@ -145,9 +145,17 @@ export const getUserUploadedNotes = async (req, res) => {
          ...note,
          academic: {
             ...note.academic,
-            // Extract graduation year from academicYear format "2020-2024" -> "2024"
             graduationYear: note.academic?.academicYear
-               ? note.academic.academicYear.split('-')[1]
+               ? (() => {
+                  const yearPart = note.academic.academicYear.split('-')[1];
+                  // If year part is 2 digits, convert to 4 digits
+                  if (yearPart.length === 2) {
+                     const twoDigitYear = parseInt(yearPart);
+                     // Assume years 00-30 are 2000s, 31-99 are 1900s (but for graduation, likely 2000s)
+                     return twoDigitYear <= 30 ? `20${yearPart}` : `19${yearPart}`;
+                  }
+                  return yearPart; // Already 4 digits
+               })()
                : undefined
          }
       }));
@@ -1280,86 +1288,101 @@ export const updateNoteDetails = async (req, res) => {
          });
       }
 
-      // Define allowed fields for update (excluding file-related fields)
-      const allowedFields = [
-         'title',
-         'description',
-         'subject.name',
-         'subject.category',
-         'subject.difficulty',
-         'academic.university',
-         'academic.department',
-         'academic.semester',
-         'academic.graduationYear',
-         'academic.degree',
-         'academic.academicYear',
-         'visibility',
-         'tags'
-      ];
+      // Extract and validate required fields
+      const {
+         title,
+         description,
+         subject,
+         university,
+         degree,  // Frontend sends 'degree' for degreeType
+         department,
+         semester,
+         graduationYear,
+         category,
+         difficulty,
+         visibility,
+         tags,
+         courseCode,
+         courseName,
+         courseCredits
+      } = req.body;
 
-      const updates = {};
-
-      // Handle direct fields
-      ['title', 'description', 'tags'].forEach(field => {
-         if (req.body[field] !== undefined) {
-            updates[field] = req.body[field];
-         }
-      });
-
-      // Handle nested subject fields - use dot notation to preserve existing data
-      if (req.body.subject) updates['subject.name'] = req.body.subject;
-      if (req.body.category) updates['subject.category'] = req.body.category;
-      if (req.body.difficulty) updates['subject.difficulty'] = req.body.difficulty;
-
-      // Handle nested academic fields - preserve existing data and only update provided fields
-      const academicFields = ['university', 'department', 'semester', 'degree', 'academicYear'];
-      const hasAcademicUpdate = academicFields.some(field => req.body[field] !== undefined) || req.body.graduationYear !== undefined;
-
-      if (hasAcademicUpdate) {
-         // Use dot notation to update specific fields without overwriting the entire academic object
-         academicFields.forEach(field => {
-            if (req.body[field] !== undefined) {
-               // Convert semester to number if it's a string
-               if (field === 'semester') {
-                  updates[`academic.${field}`] = parseInt(req.body[field]);
-               } else {
-                  updates[`academic.${field}`] = req.body[field];
-               }
-            }
+      // Validate required fields
+      if (!title || !description || !subject) {
+         return res.status(400).json({
+            success: false,
+            message: 'Missing required fields: title, description, and subject are required'
          });
+      }
 
-         // Handle graduationYear -> academicYear mapping
-         if (req.body.graduationYear !== undefined) {
-            // Map graduationYear to academicYear in the model
-            const gradYear = parseInt(req.body.graduationYear);
-            updates['academic.academicYear'] = `${gradYear - 4}-${gradYear}`;
+      // Parse tags if it's a string
+      let parsedTags = tags;
+      if (typeof tags === 'string') {
+         parsedTags = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      }
+
+      // Build update object using dot notation to preserve existing nested data
+      const updates = {
+         title: title.trim(),
+         description: description.trim(),
+         tags: parsedTags || [],
+
+         // Subject information
+         'subject.name': subject.trim(),
+         'subject.category': category || 'lecture-notes',
+         'subject.difficulty': difficulty || 'intermediate',
+
+         // Visibility
+         visibility: visibility || 'public'
+      };
+
+      // Handle academic fields - use 'ALL' defaults for empty values to maintain compatibility
+      if (university !== undefined) {
+         updates['academic.university'] = university && university.trim() ? university.trim() : 'ALL';
+      }
+
+      if (department !== undefined) {
+         updates['academic.department'] = department && department.trim() ? department.trim() : 'ALL';
+      }
+
+      if (degree !== undefined) {
+         updates['academic.degree'] = degree && degree.trim() ? degree.trim() : 'bachelor';
+      }
+
+      if (semester !== undefined) {
+         updates['academic.semester'] = semester ? parseInt(semester) : 0; // 0 means all semesters
+      }
+
+      // Handle graduation year -> academic year conversion
+      if (graduationYear !== undefined) {
+         console.log('Updating graduation year:', graduationYear, 'for note:', noteId);
+         if (graduationYear && graduationYear.trim()) {
+            const gradYear = parseInt(graduationYear);
+            if (!isNaN(gradYear)) {
+               // Convert graduation year to academic year format (e.g., 2025 -> "2021-25")
+               const startYear = gradYear - 4;
+               const newAcademicYear = `${startYear}-${gradYear.toString().slice(-2)}`;
+               updates['academic.academicYear'] = newAcademicYear;
+               console.log('Setting academic year to:', newAcademicYear);
+            }
+         } else {
+            // If graduation year is empty, set to default academic year
+            updates['academic.academicYear'] = '2024-25';
+            console.log('Setting academic year to default: 2024-25');
          }
       }
 
-      // Handle course fields (preserve existing if provided)
-      if (req.body.courseCode) updates['academic.course.code'] = req.body.courseCode;
-      if (req.body.courseName) updates['academic.course.name'] = req.body.courseName;
-      if (req.body.courseCredits) updates['academic.course.credits'] = req.body.courseCredits;
-
-      // Handle tags - convert comma-separated string to array if it's a string
-      if (updates.tags && typeof updates.tags === 'string') {
-         updates.tags = updates.tags
-            .split(',')
-            .map(tag => tag.trim())
-            .filter(Boolean);
-      }
-
-      // Handle visibility - it's a simple string field in the model
-      if (req.body.visibility) {
-         updates.visibility = req.body.visibility;
-      }
+      // Handle course information if provided (preserve existing if not provided)
+      if (courseCode) updates['academic.course.code'] = courseCode;
+      if (courseName) updates['academic.course.name'] = courseName;
+      if (courseCredits !== undefined) updates['academic.course.credits'] = parseInt(courseCredits) || 3;
 
       // Update the note
       const updatedNote = await Note.findByIdAndUpdate(
          noteId,
          { $set: updates },
          { new: true, runValidators: true }
-      ).select('title description subject academic tags visibility uploadDate _id');
+      ).populate('uploader', 'profile.firstName profile.lastName profile.avatar username');
 
       if (!updatedNote) {
          return res.status(404).json({
@@ -1368,15 +1391,31 @@ export const updateNoteDetails = async (req, res) => {
          });
       }
 
-      // Transform the response to include graduationYear for frontend compatibility
+      // Transform the response to match frontend expectations
+      const extractedGradYear = updatedNote.academic?.academicYear && updatedNote.academic.academicYear !== '2024-25'
+         ? (() => {
+            if (!updatedNote.academic.academicYear.includes('-')) {
+               return updatedNote.academic.academicYear;
+            }
+            const yearPart = updatedNote.academic.academicYear.split('-')[1];
+            // If year part is 2 digits, convert to 4 digits
+            if (yearPart.length === 2) {
+               const twoDigitYear = parseInt(yearPart);
+               // Assume years 00-30 are 2000s, 31-99 are 1900s (but for graduation, likely 2000s)
+               return twoDigitYear <= 30 ? `20${yearPart}` : `19${yearPart}`;
+            }
+            return yearPart; // Already 4 digits
+         })()
+         : undefined;
+
+      console.log('Academic year after update:', updatedNote.academic?.academicYear);
+      console.log('Extracted graduation year:', extractedGradYear);
+
       const transformedNote = {
          ...updatedNote.toObject(),
          academic: {
             ...updatedNote.academic,
-            // Extract graduation year from academicYear format "2020-2024" -> "2024"
-            graduationYear: updatedNote.academic?.academicYear
-               ? updatedNote.academic.academicYear.split('-')[1]
-               : undefined
+            graduationYear: extractedGradYear
          }
       };
 

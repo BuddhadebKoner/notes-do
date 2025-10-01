@@ -7,8 +7,8 @@ const fileSchema = z
     message: 'Only PDF files are allowed',
   })
   .refine(
-    file => file.size <= 50 * 1024 * 1024, // 50MB
-    { message: 'File size must be less than 50MB' }
+    file => file.size <= 100 * 1024 * 1024, // 100MB
+    { message: 'File size must be less than 100MB' }
   )
 
 // Upload note form validation schema
@@ -66,9 +66,7 @@ export const uploadNoteFormSchema = z.object({
     .enum(['beginner', 'intermediate', 'advanced'])
     .default('intermediate'),
 
-  visibility: z
-    .enum(['public', 'university', 'department', 'course', 'private'])
-    .default('university'),
+  visibility: z.enum(['public', 'private']).default('public'),
 
   tags: z
     .string()
@@ -98,6 +96,9 @@ export const defaultUploadValues = {
   graduationYear: '',
   academicYear: '2024-25',
   category: 'lecture-notes',
+  difficulty: 'intermediate',
+  visibility: 'public',
+  tags: '',
 }
 // Category options for select
 export const categoryOptions = [
@@ -120,9 +121,6 @@ export const difficultyOptions = [
 
 // Visibility options for select
 export const visibilityOptions = [
-  { value: 'public', label: 'Public' },
-  { value: 'university', label: 'University Only' },
-  { value: 'department', label: 'Department Only' },
-  { value: 'course', label: 'Course Only' },
-  { value: 'private', label: 'Private' },
+  { value: 'public', label: 'Public - Anyone can view' },
+  { value: 'private', label: 'Private - Only you can view' },
 ]

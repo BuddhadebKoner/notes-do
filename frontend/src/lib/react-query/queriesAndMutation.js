@@ -78,12 +78,12 @@ export const useCreateUser = () => {
 }
 
 // Mutation to upload a note
-export const useUploadNote = () => {
+export const useUploadNote = onProgress => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: QUERY_KEYS.UPLOAD_NOTE,
-    mutationFn: notesAPI.uploadNote,
+    mutationFn: formData => notesAPI.uploadNote(formData, onProgress),
     onSuccess: data => {
       if (data.success) {
         // Invalidate and refetch notes feed

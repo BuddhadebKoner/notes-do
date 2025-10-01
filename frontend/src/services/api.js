@@ -253,13 +253,22 @@ export const profileAPI = {
 // Notes API services
 export const notesAPI = {
   // Upload a note
-  uploadNote: async formData => {
+  uploadNote: async (formData, onProgress) => {
     try {
       const config = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 180000, // 3 minutes timeout for large file uploads
         ...(await getAuthConfig()),
+        onUploadProgress: progressEvent => {
+          if (onProgress && progressEvent.total) {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            )
+            onProgress(percentCompleted)
+          }
+        },
       }
       const response = await api.post(
         API_ENDPOINTS.NOTES.UPLOAD,

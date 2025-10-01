@@ -33,16 +33,89 @@ const getUserDriveService = (tokenData) => {
    return google.drive({ version: 'v3', auth });
 };
 
-// Upload file to USER'S Google Drive
-const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
+// Helper function to create or get a folder by name and parent
+const getOrCreateFolder = async (drive, folderName, parentId = 'root') => {
    try {
+      // Search for existing folder
+      const folderSearchResponse = await drive.files.list({
+         q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false and '${parentId}' in parents`,
+         fields: 'files(id, name)',
+      });
 
+      if (folderSearchResponse.data.files && folderSearchResponse.data.files.length > 0) {
+         // Folder exists, return its ID
+         return folderSearchResponse.data.files[0].id;
+      }
+
+      // Folder doesn't exist, create it
+      const folderMetadata = {
+         name: folderName,
+         mimeType: 'application/vnd.google-apps.folder',
+         parents: [parentId]
+      };
+
+      const folderResponse = await drive.files.create({
+         resource: folderMetadata,
+         fields: 'id'
+      });
+
+      console.log(`Created folder '${folderName}' with ID:`, folderResponse.data.id);
+      return folderResponse.data.id;
+
+   } catch (error) {
+      console.error(`Error creating/getting folder '${folderName}':`, error);
+      // Fallback to parent folder if folder operations fail
+      return parentId;
+   }
+};
+
+// Helper function to create organized folder structure
+const getOrCreateNotesFolder = async (drive, subject = null) => {
+   try {
+      console.log('Creating organized folder structure for subject:', subject || 'None');
+
+      // Create main Notes-Do folder
+      const mainFolderId = await getOrCreateFolder(drive, 'Notes-Do', 'root');
+      console.log('Main Notes-Do folder ID:', mainFolderId);
+
+      // Create current year folder
+      const currentYear = new Date().getFullYear().toString();
+      const yearFolderId = await getOrCreateFolder(drive, currentYear, mainFolderId);
+      console.log(`Year folder (${currentYear}) ID:`, yearFolderId);
+
+      // If subject is provided, create subject subfolder
+      if (subject && subject.trim()) {
+         const sanitizedSubject = subject.trim().replace(/[<>:"/\\|?*]/g, '-'); // Remove invalid chars
+         const subjectFolderId = await getOrCreateFolder(drive, sanitizedSubject, yearFolderId);
+         console.log(`Subject folder (${sanitizedSubject}) ID:`, subjectFolderId);
+         return subjectFolderId;
+      }
+
+      console.log('Using year folder as final destination');
+      return yearFolderId;
+
+   } catch (error) {
+      console.error('Error creating Notes-Do folder structure:', error);
+      console.log('Falling back to root folder');
+      // Fallback to root if folder operations fail
+      return 'root';
+   }
+};
+
+// Upload file to USER'S Google Drive
+const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData, subject = null) => {
+   try {
+      console.log(`📤 Starting Google Drive upload for file: ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+      const startTime = Date.now();
 
       const drive = getUserDriveService(tokenData);
 
+      // Get or create the organized folder structure
+      const notesFolderId = await getOrCreateNotesFolder(drive, subject);
+
       const fileMetadata = {
          name: fileName,
-         parents: ['root'] // Upload to user's root Drive folder
+         parents: [notesFolderId] // Upload to organized folder structure
       };
 
       // Convert buffer to readable stream
@@ -81,6 +154,9 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
          thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;
       }
 
+      const uploadDuration = Date.now() - startTime;
+      console.log(`✅ Google Drive upload completed in ${uploadDuration}ms for file: ${fileName}`);
+
       return {
          success: true,
          file: {
@@ -90,7 +166,8 @@ const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData) => {
       };
 
    } catch (error) {
-
+      const uploadDuration = Date.now() - startTime;
+      console.error(`❌ Google Drive upload failed after ${uploadDuration}ms for file: ${fileName}`, error.message);
 
       // Check if it's an auth error
       if (error.code === 401 || error.code === 403) {
@@ -184,7 +261,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
    storage: storage,
    limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit
+      fileSize: 100 * 1024 * 1024, // 100MB limit
    },
    fileFilter: (req, file, cb) => {
       if (file.mimetype === 'application/pdf') {
@@ -275,7 +352,8 @@ export const uploadNote = async (req, res) => {
                req.file.buffer,
                fileName,
                req.file.mimetype,
-               tokenData
+               tokenData,
+               subject // Pass subject for folder organization
             );
             if (driveResult.success) {
                storageLocation = 'google-drive';
@@ -452,7 +530,7 @@ export const uploadNote = async (req, res) => {
 
       // Create response message
       let successMessage = storageLocation === 'google-drive'
-         ? `📁 Note uploaded successfully to your Google Drive! The file "${fileName}" is now stored in your personal Drive.`
+         ? `📁 Note uploaded successfully to your Google Drive! The file "${fileName}" is now organized in "Notes-Do/${new Date().getFullYear()}${subject ? `/${subject.replace(/[<>:"/\\|?*]/g, '-')}` : ''}" folder.`
          : `💾 Note uploaded successfully to local storage! File saved as "${fileName}".`;
 
       // Add warning if there was a Google Drive API warning
@@ -483,7 +561,7 @@ export const uploadNote = async (req, res) => {
          if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                success: false,
-               message: 'File too large. Maximum size is 50MB.'
+               message: 'File too large. Maximum size is 100MB.'
             });
          }
       }
@@ -1127,6 +1205,8 @@ export const unlikeNote = async (req, res) => {
       });
    }
 };
+
+
 
 // Export the multer upload middleware
 export const uploadMiddleware = upload.single('noteFile');
