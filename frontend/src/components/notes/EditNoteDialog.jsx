@@ -1,7 +1,7 @@
+import { z } from 'zod'
 import React, { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,6 @@ import { Button } from '../ui/button.jsx'
 import { Input } from '../ui/input.jsx'
 import { Label } from '../ui/label.jsx'
 import { Textarea } from '../ui/textarea.jsx'
-import { Switch } from '../ui/switch.jsx'
 import {
   Select,
   SelectContent,
@@ -32,6 +31,7 @@ import {
   FormMessage,
 } from '../ui/form.jsx'
 import { useUpdateNoteDetails } from '../../lib/react-query/queriesAndMutation.js'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   WEST_BENGAL_UNIVERSITIES,
   BACHELOR_DEPARTMENTS,
@@ -40,172 +40,45 @@ import {
   SEMESTER_OPTIONS,
   GRADUATION_YEARS,
 } from '../../constants/constantData.js'
+import {
+  uploadNoteFormSchema,
+  categoryOptions,
+  difficultyOptions,
+  visibilityOptions,
+} from '../../_root/_profile/schemas/uploadNoteFormSchema.js'
 
-// Edit note form validation schema with proper Zod state management
-const editNoteFormSchema = z.object({
-  // Basic Information - Required fields
-  title: z
-    .string()
-    .trim()
-    .min(3, 'Title must be at least 3 characters')
-    .max(200, 'Title must be less than 200 characters')
-    .refine(val => val.length > 0, 'Title is required'),
+// Create edit schema based on upload schema (excluding file field and relaxing some validations)
+const editNoteFormSchema = uploadNoteFormSchema
+  .omit({ noteFile: true })
+  .extend({
+    // Make academicYear more lenient for editing (it's auto-managed)
+    academicYear: z.string().default('2024-25').optional(),
+    // Keep tags as string for editing (don't transform to array until submission)
+    tags: z.string().optional(),
+  })
 
-  description: z
-    .string()
-    .trim()
-    .min(10, 'Description must be at least 10 characters')
-    .max(1000, 'Description must be less than 1000 characters')
-    .refine(val => val.length > 0, 'Description is required'),
-
-  subject: z
-    .string()
-    .trim()
-    .min(2, 'Subject must be at least 2 characters')
-    .max(100, 'Subject must be less than 100 characters')
-    .refine(val => val.length > 0, 'Subject is required'),
-
-  // Academic Information - Required fields with validation
-  university: z
-    .string()
-    .trim()
-    .min(1, 'Please select a university')
-    .refine(
-      val => WEST_BENGAL_UNIVERSITIES.includes(val),
-      'Please select a valid university'
-    ),
-
-  degreeType: z
-    .string()
-    .min(1, 'Please select a degree type')
-    .refine(
-      val => DEGREE_TYPES.some(type => type.value === val),
-      'Please select a valid degree type'
-    ),
-
-  department: z
-    .string()
-    .trim()
-    .min(1, 'Please select a department')
-    .refine(val => {
-      const allDepartments = [...BACHELOR_DEPARTMENTS, ...MASTER_DEPARTMENTS]
-      return allDepartments.includes(val)
-    }, 'Please select a valid department'),
-
-  semester: z
-    .string()
-    .min(1, 'Please select a semester')
-    .refine(val => {
-      const semesterNum = parseInt(val)
-      return semesterNum >= 1 && semesterNum <= 12
-    }, 'Please select a valid semester (1-12)'),
-
-  graduationYear: z
-    .string()
-    .min(1, 'Please select graduation year')
-    .refine(val => {
-      const year = parseInt(val)
-      const currentYear = new Date().getFullYear()
-      return year >= currentYear && year <= currentYear + 15
-    }, 'Please select a valid graduation year'),
-
-  // Additional Information with defaults and validation
-  category: z
-    .enum(
-      [
-        'lecture-notes',
-        'assignment',
-        'exam-preparation',
-        'project-report',
-        'research-paper',
-        'tutorial',
-        'lab-manual',
-        'reference-material',
-      ],
-      {
-        errorMap: () => ({ message: 'Please select a valid category' }),
-      }
-    )
-    .default('lecture-notes'),
-
-  difficulty: z
-    .enum(['beginner', 'intermediate', 'advanced'], {
-      errorMap: () => ({ message: 'Please select a valid difficulty level' }),
-    })
-    .default('intermediate'),
-
-  visibility: z
-    .enum(['public', 'university', 'department', 'course', 'private'], {
-      errorMap: () => ({ message: 'Please select a valid visibility option' }),
-    })
-    .default('university'),
-
-  // Tags - optional with validation
-  tags: z
-    .string()
-    .optional()
-    .transform(val => val?.trim() || '')
-    .refine(val => {
-      if (!val) return true
-      const tags = val
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(Boolean)
-      return tags.length <= 10
-    }, 'Maximum 10 tags allowed')
-    .refine(val => {
-      if (!val) return true
-      const tags = val
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(Boolean)
-      return tags.every(tag => tag.length <= 50)
-    }, 'Each tag must be 50 characters or less'),
-})
-
-// Infer the type from schema for TypeScript-like validation
+// Default values for edit form (must match schema defaults)
 const defaultEditValues = {
   title: '',
   description: '',
   subject: '',
   university: '',
-  degreeType: 'bachelor',
+  degreeType: '',
   department: '',
   semester: '',
   graduationYear: '',
+  academicYear: '2024-25', // Must match schema default and format
   category: 'lecture-notes',
   difficulty: 'intermediate',
-  visibility: 'university',
+  visibility: 'public',
   tags: '',
 }
 
-const categoryOptions = [
-  { value: 'lecture-notes', label: 'Lecture Notes' },
-  { value: 'assignment', label: 'Assignment' },
-  { value: 'exam-preparation', label: 'Exam Preparation' },
-  { value: 'project-report', label: 'Project Report' },
-  { value: 'research-paper', label: 'Research Paper' },
-  { value: 'tutorial', label: 'Tutorial' },
-  { value: 'lab-manual', label: 'Lab Manual' },
-  { value: 'reference-material', label: 'Reference Material' },
-]
-
-const difficultyOptions = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-]
-
-const visibilityOptions = [
-  { value: 'public', label: 'Public' },
-  { value: 'university', label: 'University Only' },
-  { value: 'department', label: 'Department Only' },
-  { value: 'course', label: 'Course Only' },
-  { value: 'private', label: 'Private' },
-]
-
 const EditNoteDialog = ({ isOpen, onClose, note }) => {
+  const queryClient = useQueryClient()
   const [selectedDegreeType, setSelectedDegreeType] = useState('')
+  const [originalValues, setOriginalValues] = useState({})
+  const [hasChanges, setHasChanges] = useState(false)
 
   const {
     mutate: updateNoteDetails,
@@ -220,62 +93,79 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
     reValidateMode: 'onChange', // Re-validate on change
   })
 
+  // Watch form values to detect changes
+  const watchedValues = form.watch()
+
   // Reset form when note changes
   useEffect(() => {
     if (note && isOpen) {
-      console.log('Setting form data with note:', note)
-
       const degreeType = note.academic?.degree || 'bachelor'
       setSelectedDegreeType(degreeType)
 
-      // Calculate graduation year if missing (current year + typical degree duration)
-      const currentYear = new Date().getFullYear()
-      const semesterNum = note.academic?.semester || 1
-
-      // Estimate based on degree type and current semester
-      let estimatedGradYear = currentYear
-      if (degreeType === 'bachelor') {
-        estimatedGradYear =
-          currentYear + Math.max(1, Math.ceil((8 - semesterNum) / 2))
-      } else if (degreeType === 'master') {
-        estimatedGradYear =
-          currentYear + Math.max(1, Math.ceil((4 - semesterNum) / 2))
-      } else {
-        estimatedGradYear = currentYear + 1 // Default for other degrees
+      // Ensure academicYear is in correct format (YYYY-YY)
+      const ensureAcademicYearFormat = academicYear => {
+        if (!academicYear) return '2024-25'
+        if (
+          typeof academicYear === 'string' &&
+          academicYear.match(/^\d{4}-\d{2}$/)
+        ) {
+          return academicYear
+        }
+        // Default to current academic year if format is invalid
+        return '2024-25'
       }
 
-      // Ensure the estimated year is within valid range (current year to +15 years)
-      estimatedGradYear = Math.max(
-        currentYear,
-        Math.min(currentYear + 15, estimatedGradYear)
-      )
-
-      console.log('Graduation year data:', {
-        existing: note.academic?.graduationYear,
-        estimated: estimatedGradYear,
-        willUse:
-          note.academic?.graduationYear?.toString() ||
-          estimatedGradYear.toString(),
-      })
-
-      form.reset({
+      const formValues = {
         title: note.title || '',
         description: note.description || '',
         subject: note.subject?.name || note.subject || '',
-        university: note.academic?.university || '',
-        degreeType: degreeType,
-        department: note.academic?.department || '',
-        semester: note.academic?.semester?.toString() || '',
-        graduationYear:
-          note.academic?.graduationYear?.toString() ||
-          estimatedGradYear.toString(),
+        university:
+          note.academic?.university === 'ALL'
+            ? ''
+            : note.academic?.university || '',
+        degreeType: degreeType === 'ALL' ? '' : degreeType,
+        department:
+          note.academic?.department === 'ALL'
+            ? ''
+            : note.academic?.department || '',
+        semester:
+          note.academic?.semester === 0
+            ? ''
+            : note.academic?.semester?.toString() || '',
+        graduationYear: note.academic?.graduationYear?.toString() || '',
+        academicYear: ensureAcademicYearFormat(note.academic?.academicYear),
         category: note.subject?.category || 'lecture-notes',
         difficulty: note.subject?.difficulty || 'intermediate',
-        visibility: note.visibility || 'university',
+        visibility: note.visibility || 'public',
         tags: Array.isArray(note.tags) ? note.tags.join(', ') : note.tags || '',
-      })
+      }
+
+      form.reset(formValues)
+      setOriginalValues(formValues)
+      setHasChanges(false)
     }
   }, [note, isOpen, form])
+
+  // Detect changes by comparing current values with original values
+  useEffect(() => {
+    if (Object.keys(originalValues).length === 0) return
+
+    const currentValues = form.getValues()
+    const hasFormChanges = Object.keys(originalValues).some(key => {
+      const original = originalValues[key]
+      const current = currentValues[key]
+
+      // Handle empty strings and undefined as equivalent for optional fields
+      const normalizeValue = val => {
+        if (val === '' || val === undefined || val === null) return ''
+        return String(val).trim()
+      }
+
+      return normalizeValue(original) !== normalizeValue(current)
+    })
+
+    setHasChanges(hasFormChanges)
+  }, [watchedValues, originalValues, form, hasChanges])
 
   // Get departments based on selected degree type
   const getDepartmentOptions = () => {
@@ -301,92 +191,70 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
         return
       }
 
-      // Additional Zod validation with custom rules
-      const validationResult = editNoteFormSchema.safeParse(values)
-
-      if (!validationResult.success) {
-        // Set field-specific errors from Zod validation
-        validationResult.error.errors.forEach(error => {
-          const fieldName = error.path[0]
-          if (fieldName) {
-            form.setError(fieldName, {
-              message: error.message,
-            })
-          }
-        })
-        return
-      }
-
-      const validatedData = validationResult.data
-
-      // Validate department compatibility with degree type
-      if (
-        !validateDepartmentForDegreeType(
-          validatedData.department,
-          validatedData.degreeType
-        )
-      ) {
-        form.setError('department', {
-          message: `Selected department is not available for ${validatedData.degreeType} degree`,
-        })
-        return
-      }
-
-      console.log('Submitting validated note data:', {
-        noteId: note._id,
-        ...validatedData,
-      })
-
-      // Transform data for API with validated values
+      // Transform data for API - react-hook-form already validated with Zod
       const updateData = {
-        title: validatedData.title.trim(),
-        description: validatedData.description.trim(),
-        subject: validatedData.subject.trim(),
-        university: validatedData.university,
-        degree: validatedData.degreeType,
-        department: validatedData.department,
-        semester: validatedData.semester,
-        graduationYear: validatedData.graduationYear,
+        title: values.title.trim(),
+        description: values.description.trim(),
+        subject: values.subject.trim(),
+        university: values.university,
+        degree: values.degreeType,
+        department: values.department,
+        semester: values.semester,
+        graduationYear: values.graduationYear,
         // Preserve course information (required fields)
         courseCode: note.academic?.course?.code,
         courseName: note.academic?.course?.name,
         courseCredits: note.academic?.course?.credits,
-        category: validatedData.category,
-        difficulty: validatedData.difficulty,
-        visibility: validatedData.visibility,
-        tags: validatedData.tags || '',
+        category: values.category,
+        difficulty: values.difficulty,
+        visibility: values.visibility,
+        tags: values.tags || '',
       }
 
       updateNoteDetails(
         { noteId: note._id, ...updateData },
         {
           onSuccess: data => {
-            console.log('Note updated successfully:', data)
             // Clear any lingering errors
             form.clearErrors()
+            setHasChanges(false)
+            // Update original values to reflect the changes
+            const newValues = form.getValues()
+            setOriginalValues(newValues)
+
+            // Invalidate relevant queries to refresh data
+            queryClient.invalidateQueries({ queryKey: ['notes'] })
+            queryClient.invalidateQueries({ queryKey: ['note', note._id] })
+            queryClient.invalidateQueries({ queryKey: ['userNotes'] })
+
             onClose()
           },
           onError: error => {
-            console.error('Update failed:', error)
+            // Handle different API error structures
+            let errorMessage = 'Failed to update note. Please try again.'
 
-            // Handle specific API errors
-            if (error.errors && Array.isArray(error.errors)) {
-              error.errors.forEach(err => {
-                form.setError('root', {
-                  message: err,
-                })
-              })
-            } else {
-              form.setError('root', {
-                message:
-                  error.message || 'Failed to update note. Please try again.',
-              })
+            if (error) {
+              // Handle array of errors
+              if (error.errors && Array.isArray(error.errors)) {
+                errorMessage = error.errors.join(', ')
+              }
+              // Handle single error message
+              else if (error.message) {
+                errorMessage = error.message
+              }
+              // Handle string error
+              else if (typeof error === 'string') {
+                errorMessage = error
+              }
             }
+
+            form.setError('root', {
+              message: errorMessage,
+            })
           },
         }
       )
     } catch (error) {
-      console.error('Unexpected error during submission:', error)
       form.setError('root', {
         message: 'An unexpected error occurred. Please try again.',
       })
@@ -398,31 +266,26 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
     form.reset(defaultEditValues)
     form.clearErrors()
     setSelectedDegreeType('bachelor')
+    setOriginalValues({})
+    setHasChanges(false)
     onClose()
-  }
-
-  // Validate form on department selection based on degree type
-  const validateDepartmentForDegreeType = (department, degreeType) => {
-    if (!department || !degreeType) return true
-
-    const validDepartments =
-      degreeType === 'bachelor'
-        ? BACHELOR_DEPARTMENTS
-        : degreeType === 'master'
-          ? MASTER_DEPARTMENTS
-          : [...BACHELOR_DEPARTMENTS, ...MASTER_DEPARTMENTS]
-
-    return validDepartments.includes(department)
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className='sm:max-w-[800px] max-h-[90vh] overflow-y-auto'>
         <DialogHeader>
-          <DialogTitle>Edit Note</DialogTitle>
+          <DialogTitle className='flex items-center gap-2'>
+            Edit Note
+            {hasChanges && (
+              <span className='text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full'>
+                Unsaved changes
+              </span>
+            )}
+          </DialogTitle>
           <DialogDescription>
-            Update your note details. You can modify all information except the
-            file itself.
+            Update your note details. Changes will only be saved when you click
+            "Update Note".
           </DialogDescription>
 
           {/* File restriction notice */}
@@ -529,22 +392,26 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
             {/* Academic Information */}
             <div className='bg-gray-50 rounded-lg p-4'>
               <h3 className='text-lg font-semibold text-gray-900 mb-4'>
-                Academic Information
+                Academic Information (Optional)
               </h3>
+              <p className='text-sm text-gray-600 mb-4'>
+                Help others find your notes by providing academic context. All
+                fields are optional.
+              </p>
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 <FormField
                   control={form.control}
                   name='university'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>University *</FormLabel>
+                      <FormLabel>University</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder='Select university' />
+                            <SelectValue placeholder='Select university (optional)' />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -565,30 +432,17 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   name='degreeType'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Degree Type *</FormLabel>
+                      <FormLabel>Degree Type</FormLabel>
                       <Select
                         onValueChange={value => {
                           field.onChange(value)
                           setSelectedDegreeType(value)
-
-                          // Reset and validate department when degree type changes
-                          const currentDepartment = form.getValues('department')
-                          if (
-                            !validateDepartmentForDegreeType(
-                              currentDepartment,
-                              value
-                            )
-                          ) {
-                            form.setValue('department', '', {
-                              shouldValidate: true,
-                            })
-                          }
                         }}
                         value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder='Select degree type' />
+                            <SelectValue placeholder='Select degree type (optional)' />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -600,7 +454,7 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        This will filter available departments
+                        Optional field to help categorize your notes
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -612,25 +466,14 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   name='department'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Department *</FormLabel>
+                      <FormLabel>Department</FormLabel>
                       <Select
-                        onValueChange={value => {
-                          field.onChange(value)
-                          // Trigger validation
-                          form.trigger('department')
-                        }}
+                        onValueChange={field.onChange}
                         value={field.value}
-                        disabled={!selectedDegreeType}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue
-                              placeholder={
-                                selectedDegreeType
-                                  ? 'Select department'
-                                  : 'Select degree type first'
-                              }
-                            />
+                            <SelectValue placeholder='Select department (optional)' />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -645,9 +488,7 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {selectedDegreeType
-                          ? `Showing ${getDepartmentOptions().length} ${selectedDegreeType} departments`
-                          : 'Please select a degree type first'}
+                        Optional field to help categorize your notes
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -659,14 +500,14 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   name='semester'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Semester *</FormLabel>
+                      <FormLabel>Semester</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder='Select semester' />
+                            <SelectValue placeholder='Select semester (optional)' />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -690,14 +531,14 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   name='graduationYear'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Graduation Year *</FormLabel>
+                      <FormLabel>Graduation Year</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder='Select graduation year' />
+                            <SelectValue placeholder='Select graduation year (optional)' />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -834,25 +675,48 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
               )}
             />
 
-            <DialogFooter>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleClose}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button type='submit' disabled={isLoading} className='min-w-32'>
-                {isLoading ? (
-                  <div className='flex items-center space-x-2'>
-                    <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                    <span>Saving...</span>
-                  </div>
-                ) : (
-                  'Save Changes'
-                )}
-              </Button>
+            <DialogFooter className='flex flex-col gap-2'>
+              {/* Help text for update button state */}
+              {!hasChanges && !isLoading && (
+                <p className='text-xs text-gray-500 text-center'>
+                  Make changes to enable the Update button
+                </p>
+              )}
+              {hasChanges && !form.formState.isValid && (
+                <p className='text-xs text-red-500 text-center'>
+                  Please fix form errors before updating
+                </p>
+              )}
+
+              <div className='flex gap-2 justify-end'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={handleClose}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type='submit'
+                  disabled={isLoading || !hasChanges || !form.formState.isValid}
+                  className='min-w-32'
+                  variant={
+                    hasChanges && form.formState.isValid
+                      ? 'default'
+                      : 'secondary'
+                  }
+                >
+                  {isLoading ? (
+                    <div className='flex items-center space-x-2'>
+                      <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                      <span>Updating...</span>
+                    </div>
+                  ) : (
+                    'Update Note'
+                  )}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

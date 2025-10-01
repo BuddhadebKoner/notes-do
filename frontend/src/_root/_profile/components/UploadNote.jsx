@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react'
 import { setAuthToken } from '../../../config/api.js'
 import { useUploadNote } from '../../../lib/react-query/queriesAndMutation.js'
 import GoogleDriveConnect from '../../../components/google/GoogleDriveConnect.jsx'
+import UploadProgressDialog from '../../../components/upload/UploadProgressDialog.jsx'
 import {
   uploadNoteFormSchema,
   defaultUploadValues,
@@ -72,12 +73,35 @@ const UploadNote = () => {
     localStorage.getItem('googleDriveToken') !== null
   )
   const [selectedDegreeType, setSelectedDegreeType] = useState('bachelor')
+  const [uploadStatus, setUploadStatus] = useState('idle') // 'idle', 'uploading', 'success', 'error'
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploadFileName, setUploadFileName] = useState('')
+  const [preventClose, setPreventClose] = useState(false)
   const fileInputRef = useRef(null)
 
   const form = useForm({
     resolver: zodResolver(uploadNoteFormSchema),
     defaultValues: defaultUploadValues,
   })
+
+  // Prevent tab closing/reloading during upload
+  useEffect(() => {
+    const handleBeforeUnload = e => {
+      if (preventClose) {
+        e.preventDefault()
+        e.returnValue = 'Upload in progress. Are you sure you want to leave?'
+        return 'Upload in progress. Are you sure you want to leave?'
+      }
+    }
+
+    if (preventClose) {
+      window.addEventListener('beforeunload', handleBeforeUnload)
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [preventClose])
 
   // Get departments based on selected degree type
   const getDepartmentOptions = () => {
@@ -149,9 +173,18 @@ const UploadNote = () => {
         uploadFormData.append('googleDriveToken', googleDriveToken)
       }
 
+      // Show upload dialog and prevent browser closing
+      setUploadFileName(values.noteFile.name)
+      setUploadStatus('uploading')
+      setShowUploadDialog(true)
+      setPreventClose(true)
+
       // Use React Query mutation
       uploadNote(uploadFormData, {
         onSuccess: result => {
+          setUploadStatus('success')
+          setPreventClose(false)
+
           if (result.success) {
             // Reset form on success
             form.reset(defaultUploadValues)
@@ -162,7 +195,26 @@ const UploadNote = () => {
           }
         },
         onError: error => {
-          console.error('Upload error:', error)
+          setUploadStatus('error')
+          setPreventClose(false)
+
+          // Enhanced error handling for different error types
+          let errorMessage = 'Failed to upload note. Please try again.'
+
+          if (
+            error.code === 'ECONNABORTED' ||
+            error.message?.includes('timeout')
+          ) {
+            errorMessage =
+              'Upload timed out. Please check your internet connection and try again.'
+          } else if (error.message?.includes('Network Error')) {
+            errorMessage =
+              'Network connection lost. Please check your internet and try again.'
+          } else if (error.response?.data?.message) {
+            errorMessage = error.response.data.message
+          } else if (error.message) {
+            errorMessage = error.message
+          }
 
           // Set form errors based on API response
           if (error.response?.data?.errors) {
@@ -172,16 +224,11 @@ const UploadNote = () => {
               }
             )
           } else {
-            // Generic error handling
-            form.setError('root', {
-              message:
-                error.message || 'Failed to upload note. Please try again.',
-            })
+            form.setError('root', { message: errorMessage })
           }
         },
       })
     } catch (error) {
-      console.error('Unexpected error:', error)
       form.setError('root', {
         message: 'An unexpected error occurred. Please try again.',
       })
@@ -232,549 +279,562 @@ const UploadNote = () => {
             )}
 
             <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className='space-y-8'
+              <div
+                className={`relative ${!driveConnected ? 'opacity-60 pointer-events-none' : ''}`}
               >
-                {/* Display root form errors */}
-                {form.formState.errors.root && (
-                  <Card className='border-destructive bg-destructive/10 dark:bg-destructive/20'>
-                    <CardContent className='p-4'>
-                      <div className='flex items-start'>
-                        <X className='w-4 h-4 text-destructive mt-0.5 mr-3' />
-                        <div>
-                          <h3 className='text-sm font-medium text-destructive'>
-                            Upload Failed
-                          </h3>
-                          <div className='mt-2 text-sm text-destructive/80'>
-                            {form.formState.errors.root.message}
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className='space-y-8'
+                >
+                  {/* Display root form errors */}
+                  {form.formState.errors.root && (
+                    <Card className='border-destructive bg-destructive/10 dark:bg-destructive/20'>
+                      <CardContent className='p-4'>
+                        <div className='flex items-start'>
+                          <X className='w-4 h-4 text-destructive mt-0.5 mr-3' />
+                          <div>
+                            <h3 className='text-sm font-medium text-destructive'>
+                              Upload Failed
+                            </h3>
+                            <div className='mt-2 text-sm text-destructive/80'>
+                              {form.formState.errors.root.message}
+                            </div>
                           </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {/* File Upload */}
+                  <FormField
+                    control={form.control}
+                    name='noteFile'
+                    render={({ field: { value, onChange, ...field } }) => (
+                      <FormItem>
+                        <FormLabel>PDF File *</FormLabel>
+                        <FormControl>
+                          <div className='space-y-2'>
+                            <Input
+                              type='file'
+                              accept='.pdf'
+                              ref={fileInputRef}
+                              disabled={!driveConnected}
+                              onChange={e => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  onChange(file) // Update form state
+                                }
+                              }}
+                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
+                                !driveConnected
+                                  ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
+                                  : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
+                              }`}
+                              // Don't spread field props for file inputs
+                            />
+                            {value && (
+                              <p className='text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2'>
+                                <CheckCircle className='w-3 h-3' />
+                                Selected: {value.name} (
+                                {(value.size / 1024 / 1024).toFixed(2)} MB)
+                              </p>
+                            )}
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          Upload a PDF file (max 100MB). Only PDF files are
+                          supported.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Basic Information */}
+                  <Card className='bg-muted/50'>
+                    <CardHeader>
+                      <CardTitle className='text-lg flex items-center gap-2'>
+                        <FileText className='w-5 h-5' />
+                        Basic Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                        <FormField
+                          control={form.control}
+                          name='title'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Title *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder='e.g., Data Structures - Linked Lists'
+                                  disabled={!driveConnected}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='subject'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Subject *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder='e.g., Data Structures'
+                                  disabled={!driveConnected}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Description */}
+                  <FormField
+                    control={form.control}
+                    name='description'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder='Brief description of the notes content...'
+                            className='resize-none'
+                            rows={3}
+                            disabled={!driveConnected}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Provide a detailed description of what this note
+                          covers (10-1000 characters)
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Additional Information */}
+                  <Card className='bg-muted/50'>
+                    <CardHeader>
+                      <CardTitle className='text-lg flex items-center gap-2'>
+                        <Upload className='w-5 h-5' />
+                        Additional Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                        <FormField
+                          control={form.control}
+                          name='category'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Category</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger disabled={!driveConnected}>
+                                    <SelectValue placeholder='Select category' />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {categoryOptions.map(option => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                Choose the most appropriate category
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='difficulty'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Difficulty Level</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger disabled={!driveConnected}>
+                                    <SelectValue placeholder='Select difficulty' />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {difficultyOptions.map(option => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='visibility'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Visibility</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger disabled={!driveConnected}>
+                                    <SelectValue placeholder='Select visibility' />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {visibilityOptions.map(option => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                Control who can see this note
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Tags */}
+                  <FormField
+                    control={form.control}
+                    name='tags'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tags (optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='e.g., algorithms, data structures, programming'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Add comma-separated tags to help others find your
+                          notes
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Target Audience (Optional) */}
+                  <Card className='bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'>
+                    <CardHeader>
+                      <CardTitle className='text-lg flex items-center gap-2 text-blue-900 dark:text-blue-100'>
+                        <Target className='w-5 h-5' />
+                        Target Audience (Optional)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className='mb-4'>
+                        <p className='text-sm text-blue-700 dark:text-blue-300'>
+                          Help others find your notes by specifying the target
+                          audience. Leave empty to make it available for all
+                          academic levels (Academic Independent).
+                        </p>
+                      </div>
+                      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                        <FormField
+                          control={form.control}
+                          name='university'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>University</FormLabel>
+                              <Select
+                                onValueChange={value =>
+                                  field.onChange(value === 'all' ? '' : value)
+                                }
+                                value={field.value || 'all'}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder='Any University' />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value='all'>
+                                    Any University
+                                  </SelectItem>
+                                  {WEST_BENGAL_UNIVERSITIES.map(university => (
+                                    <SelectItem
+                                      key={university}
+                                      value={university}
+                                    >
+                                      {university}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                Leave empty for all universities
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className='lg:col-span-1'>
+                          <FormLabel>Degree Type</FormLabel>
+                          <Select
+                            onValueChange={value => {
+                              const degreeValue = value === 'all' ? '' : value
+                              setSelectedDegreeType(degreeValue || 'bachelor')
+                              form.setValue('degreeType', degreeValue)
+                              // Reset department when degree type changes
+                              if (degreeValue === '') {
+                                form.setValue('department', '')
+                              }
+                            }}
+                            value={form.watch('degreeType') || 'all'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder='Any Degree Level' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value='all'>
+                                Any Degree Level
+                              </SelectItem>
+                              {DEGREE_TYPES.map(degree => (
+                                <SelectItem
+                                  key={degree.value}
+                                  value={degree.value}
+                                >
+                                  {degree.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Leave empty for all degree levels
+                          </FormDescription>
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name='department'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Department</FormLabel>
+                              <Select
+                                onValueChange={value =>
+                                  field.onChange(value === 'all' ? '' : value)
+                                }
+                                value={field.value || 'all'}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder='Any Department' />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value='all'>
+                                    Any Department
+                                  </SelectItem>
+                                  {getDepartmentOptions().map(department => (
+                                    <SelectItem
+                                      key={department.value}
+                                      value={department.value}
+                                    >
+                                      {department.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                Leave empty for all departments
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='semester'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Semester</FormLabel>
+                              <Select
+                                onValueChange={value =>
+                                  field.onChange(value === 'all' ? '' : value)
+                                }
+                                value={field.value || 'all'}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder='Any Semester' />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value='all'>
+                                    Any Semester
+                                  </SelectItem>
+                                  {SEMESTER_OPTIONS.map(semester => (
+                                    <SelectItem
+                                      key={semester.value}
+                                      value={semester.value}
+                                    >
+                                      {semester.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                Leave empty for all semesters
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className='lg:col-span-1'>
+                          <FormLabel>Graduation Year</FormLabel>
+                          <Select
+                            onValueChange={value =>
+                              form.setValue(
+                                'graduationYear',
+                                value === 'all' ? '' : value
+                              )
+                            }
+                            value={form.watch('graduationYear') || 'all'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder='Any Graduation Year' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value='all'>
+                                Any Graduation Year
+                              </SelectItem>
+                              {GRADUATION_YEARS.map(year => (
+                                <SelectItem key={year.value} value={year.value}>
+                                  {year.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription className='text-xs'>
+                            Leave empty for all graduation years
+                          </FormDescription>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                )}
-                {/* File Upload */}
-                <FormField
-                  control={form.control}
-                  name='noteFile'
-                  render={({ field: { value, onChange, ...field } }) => (
-                    <FormItem>
-                      <FormLabel>PDF File *</FormLabel>
-                      <FormControl>
-                        <div className='space-y-2'>
-                          <Input
-                            type='file'
-                            accept='.pdf'
-                            ref={fileInputRef}
-                            onChange={e => {
-                              const file = e.target.files?.[0]
-                              if (file) {
-                                onChange(file) // Update form state
-                              }
-                            }}
-                            className='file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-                            // Don't spread field props for file inputs
-                          />
-                          {value && (
-                            <p className='text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2'>
-                              <CheckCircle className='w-3 h-3' />
-                              Selected: {value.name} (
-                              {(value.size / 1024 / 1024).toFixed(2)} MB)
-                            </p>
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Upload a PDF file (max 50MB). Only PDF files are
-                        supported.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
-                {/* Basic Information */}
-                <Card className='bg-muted/50'>
-                  <CardHeader>
-                    <CardTitle className='text-lg flex items-center gap-2'>
-                      <FileText className='w-5 h-5' />
-                      Basic Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                      <FormField
-                        control={form.control}
-                        name='title'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Title *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder='e.g., Data Structures - Linked Lists'
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name='subject'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Subject *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder='e.g., Data Structures'
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Description */}
-                <FormField
-                  control={form.control}
-                  name='description'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description *</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder='Brief description of the notes content...'
-                          className='resize-none'
-                          rows={3}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Provide a detailed description of what this note covers
-                        (10-1000 characters)
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Additional Information */}
-                <Card className='bg-muted/50'>
-                  <CardHeader>
-                    <CardTitle className='text-lg flex items-center gap-2'>
-                      <Upload className='w-5 h-5' />
-                      Additional Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-                      <FormField
-                        control={form.control}
-                        name='category'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Category</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder='Select category' />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {categoryOptions.map(option => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Choose the most appropriate category
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name='difficulty'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Difficulty Level</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder='Select difficulty' />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {difficultyOptions.map(option => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name='visibility'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Visibility</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder='Select visibility' />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {visibilityOptions.map(option => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Control who can see this note
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Tags */}
-                <FormField
-                  control={form.control}
-                  name='tags'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tags (optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder='e.g., algorithms, data structures, programming'
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Add comma-separated tags to help others find your notes
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Target Audience (Optional) */}
-                <Card className='bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'>
-                  <CardHeader>
-                    <CardTitle className='text-lg flex items-center gap-2 text-blue-900 dark:text-blue-100'>
-                      <Target className='w-5 h-5' />
-                      Target Audience (Optional)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className='mb-4'>
-                      <p className='text-sm text-blue-700 dark:text-blue-300'>
-                        Help others find your notes by specifying the target
-                        audience. Leave empty to make it available for all
-                        academic levels (Academic Independent).
-                      </p>
-                    </div>
-                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                      <FormField
-                        control={form.control}
-                        name='university'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>University</FormLabel>
-                            <Select
-                              onValueChange={value =>
-                                field.onChange(value === 'all' ? '' : value)
-                              }
-                              value={field.value || 'all'}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder='Any University' />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value='all'>
-                                  Any University
-                                </SelectItem>
-                                {WEST_BENGAL_UNIVERSITIES.map(university => (
-                                  <SelectItem
-                                    key={university}
-                                    value={university}
-                                  >
-                                    {university}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Leave empty for all universities
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className='lg:col-span-1'>
-                        <FormLabel>Degree Type</FormLabel>
-                        <Select
-                          onValueChange={value => {
-                            const degreeValue = value === 'all' ? '' : value
-                            setSelectedDegreeType(degreeValue || 'bachelor')
-                            form.setValue('degreeType', degreeValue)
-                            // Reset department when degree type changes
-                            if (degreeValue === '') {
-                              form.setValue('department', '')
-                            }
-                          }}
-                          value={form.watch('degreeType') || 'all'}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder='Any Degree Level' />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value='all'>
-                              Any Degree Level
-                            </SelectItem>
-                            {DEGREE_TYPES.map(degree => (
-                              <SelectItem
-                                key={degree.value}
-                                value={degree.value}
-                              >
-                                {degree.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Leave empty for all degree levels
-                        </FormDescription>
-                      </div>
-
-                      <FormField
-                        control={form.control}
-                        name='department'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Department</FormLabel>
-                            <Select
-                              onValueChange={value =>
-                                field.onChange(value === 'all' ? '' : value)
-                              }
-                              value={field.value || 'all'}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder='Any Department' />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value='all'>
-                                  Any Department
-                                </SelectItem>
-                                {getDepartmentOptions().map(department => (
-                                  <SelectItem
-                                    key={department.value}
-                                    value={department.value}
-                                  >
-                                    {department.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Leave empty for all departments
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name='semester'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Semester</FormLabel>
-                            <Select
-                              onValueChange={value =>
-                                field.onChange(value === 'all' ? '' : value)
-                              }
-                              value={field.value || 'all'}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder='Any Semester' />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value='all'>
-                                  Any Semester
-                                </SelectItem>
-                                {SEMESTER_OPTIONS.map(semester => (
-                                  <SelectItem
-                                    key={semester.value}
-                                    value={semester.value}
-                                  >
-                                    {semester.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Leave empty for all semesters
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className='lg:col-span-1'>
-                        <FormLabel>Graduation Year</FormLabel>
-                        <Select
-                          onValueChange={value =>
-                            form.setValue(
-                              'graduationYear',
-                              value === 'all' ? '' : value
-                            )
-                          }
-                          value={form.watch('graduationYear') || 'all'}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder='Any Graduation Year' />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value='all'>
-                              Any Graduation Year
-                            </SelectItem>
-                            {GRADUATION_YEARS.map(year => (
-                              <SelectItem key={year.value} value={year.value}>
-                                {year.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription className='text-xs'>
-                          Leave empty for all graduation years
-                        </FormDescription>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Submit Button */}
-                <Card className='bg-muted/50 border-t'>
-                  <CardContent className='p-6'>
-                    <div className='flex items-center justify-between'>
-                      <div className='text-sm text-muted-foreground'>
-                        {!driveConnected && (
-                          <span className='text-amber-600 dark:text-amber-400 flex items-center gap-1'>
-                            <AlertTriangle className='w-3 h-3' />
-                            Google Drive not connected
-                          </span>
-                        )}
-                        {driveConnected &&
-                          form.formState.isDirty &&
-                          !isUploading && (
-                            <span className='text-emerald-600 dark:text-emerald-400 flex items-center gap-1'>
-                              <CheckCircle className='w-3 h-3' />
-                              Ready to upload
+                  {/* Submit Button */}
+                  <Card className='bg-muted/50 border-t'>
+                    <CardContent className='p-6'>
+                      <div className='flex items-center justify-between'>
+                        <div className='text-sm text-muted-foreground'>
+                          {!driveConnected && (
+                            <span className='text-amber-600 dark:text-amber-400 flex items-center gap-1'>
+                              <AlertTriangle className='w-3 h-3' />
+                              Google Drive not connected
                             </span>
                           )}
-                        {isUploading && (
-                          <span className='flex items-center gap-1'>
-                            <Loader2 className='w-3 h-3 animate-spin' />
-                            Uploading your note...
-                          </span>
-                        )}
-                      </div>
-                      <div className='flex space-x-4'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={() => {
-                            form.reset(defaultUploadValues)
-                            if (fileInputRef.current) {
-                              fileInputRef.current.value = ''
-                            }
-                          }}
-                          disabled={isUploading}
-                        >
-                          <RotateCcw className='w-4 h-4' />
-                          Reset
-                        </Button>
-                        <Button
-                          type='submit'
-                          disabled={
-                            isUploading ||
-                            !form.watch('noteFile') ||
-                            !driveConnected
-                          }
-                          className='min-w-32'
-                          title={
-                            !driveConnected
-                              ? 'Connect to Google Drive first'
-                              : ''
-                          }
-                        >
-                          {isUploading ? (
-                            <div className='flex items-center gap-2'>
-                              <Loader2 className='w-4 h-4 animate-spin' />
-                              <span>Uploading...</span>
-                            </div>
-                          ) : !driveConnected ? (
-                            'Connect Drive First'
-                          ) : (
-                            <>
-                              <Upload className='w-4 h-4' />
-                              Upload Note
-                            </>
+                          {driveConnected &&
+                            form.formState.isDirty &&
+                            !isUploading && (
+                              <span className='text-emerald-600 dark:text-emerald-400 flex items-center gap-1'>
+                                <CheckCircle className='w-3 h-3' />
+                                Ready to upload
+                              </span>
+                            )}
+                          {isUploading && (
+                            <span className='flex items-center gap-1'>
+                              <Loader2 className='w-3 h-3 animate-spin' />
+                              Uploading your note...
+                            </span>
                           )}
-                        </Button>
+                        </div>
+                        <div className='flex space-x-4'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() => {
+                              form.reset(defaultUploadValues)
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = ''
+                              }
+                            }}
+                            disabled={isUploading}
+                          >
+                            <RotateCcw className='w-4 h-4' />
+                            Reset
+                          </Button>
+                          <Button
+                            type='submit'
+                            disabled={
+                              isUploading ||
+                              !form.watch('noteFile') ||
+                              !driveConnected
+                            }
+                            className='min-w-32'
+                            title={
+                              !driveConnected
+                                ? 'Connect to Google Drive first'
+                                : ''
+                            }
+                          >
+                            {isUploading ? (
+                              <div className='flex items-center gap-2'>
+                                <Loader2 className='w-4 h-4 animate-spin' />
+                                <span>Uploading...</span>
+                              </div>
+                            ) : !driveConnected ? (
+                              'Connect Drive First'
+                            ) : (
+                              <>
+                                <Upload className='w-4 h-4' />
+                                Upload Note
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </form>
+                    </CardContent>
+                  </Card>
+                </form>
+              </div>
             </Form>
 
             {/* Upload Result */}
@@ -919,6 +979,21 @@ const UploadNote = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Upload Progress Dialog */}
+      <UploadProgressDialog
+        isOpen={showUploadDialog}
+        onClose={() => {
+          setShowUploadDialog(false)
+          setUploadStatus('idle')
+          setUploadFileName('')
+          setPreventClose(false)
+        }}
+        uploadStatus={uploadStatus}
+        fileName={uploadFileName}
+        uploadResult={uploadResult}
+        uploadError={uploadError}
+      />
     </div>
   )
 }

@@ -10,7 +10,7 @@ const storage = multer.memoryStorage(); // Store files in memory for Google Driv
 const upload = multer({
    storage: storage,
    limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit
+      fileSize: 100 * 1024 * 1024, // 100MB limit
       files: 1 // Only one file at a time
    },
    fileFilter: (req, file, cb) => {
@@ -51,7 +51,7 @@ router.use((error, req, res, next) => {
       if (error.code === 'LIMIT_FILE_SIZE') {
          return res.status(400).json({
             success: false,
-            message: 'File too large. Maximum size is 50MB.'
+            message: 'File too large. Maximum size is 100MB.'
          });
       }
       if (error.code === 'LIMIT_UNEXPECTED_FILE') {

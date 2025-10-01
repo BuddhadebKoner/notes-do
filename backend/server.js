@@ -225,6 +225,11 @@ const startServer = async () => {
          `);
       });
 
+      // Set server timeout to 5 minutes for large file uploads
+      server.timeout = 300000; // 5 minutes
+      server.keepAliveTimeout = 300000; // 5 minutes
+      server.headersTimeout = 310000; // Slightly higher than keepAliveTimeout
+
       return server;
    } catch (error) {
       console.error('💥 Failed to start server:', error.message);
