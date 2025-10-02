@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react'
 import api, { setAuthToken, API_ENDPOINTS } from '../../../config/api.js'
 import { useUploadNote } from '../../../lib/react-query/queriesAndMutation.js'
-import chunkedUploadService from '../../../services/chunkedUploadService.js'
 import GoogleDriveStatus from '../../../components/google/GoogleDriveStatus.jsx'
 import UploadProgressDialog from '../../../components/upload/UploadProgressDialog.jsx'
 import {
@@ -83,7 +82,6 @@ const UploadNote = () => {
   const [uploadFileName, setUploadFileName] = useState('')
   const [preventClose, setPreventClose] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [isChunkedUpload, setIsChunkedUpload] = useState(false)
   const fileInputRef = useRef(null)
 
   const form = useForm({
@@ -158,7 +156,6 @@ const UploadNote = () => {
             )
           } else if (note.status === 'processing') {
             // Still processing, continue polling
-            console.log('📋 Note still processing:', note.title)
           }
         }
       } catch (error) {
@@ -217,182 +214,87 @@ const UploadNote = () => {
       // Set auth token
       setAuthToken(token)
 
-      // Determine upload method based on file size
-      const fileSize = values.noteFile.size
-      const isLargeFile = fileSize > 50 * 1024 * 1024 // 50MB threshold
-
       // Show upload dialog and prevent browser closing
       setUploadFileName(values.noteFile.name)
       setUploadStatus('uploading')
       setShowUploadDialog(true)
       setPreventClose(true)
-      setIsChunkedUpload(isLargeFile)
-      setUploadProgress(0)
 
-      if (isLargeFile) {
-        // Use chunked upload for large files (>50MB)
-        console.log(
-          '🚀 Using chunked upload for large file:',
-          fileSize / 1024 / 1024,
-          'MB'
-        )
+      // Create FormData
+      const uploadFormData = new FormData()
+      uploadFormData.append('noteFile', values.noteFile)
 
-        // Prepare metadata for chunked upload
-        const metadata = {
-          title: values.title,
-          description: values.description,
-          university: values.university,
-          department: values.department,
-          course: values.course,
-          semester: values.semester,
-          academicYear: values.academicYear,
-          subject: values.subject,
-          category: values.category,
-          difficulty: values.difficulty,
-          tags: Array.isArray(values.tags)
-            ? values.tags.join(', ')
-            : values.tags,
-          chapters: values.chapters || '',
-          visibility: values.visibility,
-          degreeType: selectedDegreeType,
+      // Add form data (convert tags array back to string)
+      const formDataToSend = {
+        ...values,
+        degreeType: selectedDegreeType,
+        tags: Array.isArray(values.tags)
+          ? values.tags.join(', ')
+          : values.tags,
+      }
+
+      // Add all form fields except file
+      Object.entries(formDataToSend).forEach(([key, value]) => {
+        if (key !== 'noteFile' && value !== undefined && value !== '') {
+          uploadFormData.append(key, String(value))
         }
+      })
 
-        // Get Google Drive token
-        const googleDriveToken = localStorage.getItem('googleDriveToken')
+      // Add Google Drive token if available
+      const googleDriveToken = localStorage.getItem('googleDriveToken')
+      if (googleDriveToken) {
+        uploadFormData.append('googleDriveToken', googleDriveToken)
+      }
 
-        // Start chunked upload
-        const result = await chunkedUploadService.uploadFile(
-          values.noteFile,
-          metadata,
-          {
-            googleDriveToken,
-            concurrency: 3,
-            enableResume: true,
-            onProgress: progressData => {
-              console.log('📊 Chunked upload progress:', progressData)
-              setUploadProgress(progressData.progress || 0)
+      // Use React Query mutation
+      uploadNote(uploadFormData, {
+        onSuccess: result => {
+          setUploadStatus('success')
+          setPreventClose(false)
 
-              // Update status based on progress
-              if (progressData.progress >= 100) {
-                setUploadStatus('success')
-              } else if (progressData.status === 'completing') {
-                setUploadStatus('processing')
-              }
-            },
-          }
-        )
-
-        if (result.success) {
-          // Check if the note is in processing status
-          if (
-            result.status === 'processing' ||
-            result.storageLocation === 'processing'
-          ) {
-            setUploadStatus('processing')
-            // Show processing message but don't reset form yet
-            toast.success(
-              'File uploaded successfully! Google Drive processing in progress...'
-            )
-
-            // Optional: Start polling for status updates
-            startStatusPolling(result.note._id)
-          } else {
-            setUploadStatus('success')
-            setPreventClose(false)
-
+          if (result.success) {
             // Reset form on success
             form.reset(defaultUploadValues)
+            // Reset file input
             if (fileInputRef.current) {
               fileInputRef.current.value = ''
             }
           }
-        } else {
-          throw new Error(result.message || 'Chunked upload failed')
-        }
-      } else {
-        // Use traditional upload for smaller files (≤50MB)
-        console.log(
-          '📤 Using traditional upload for small file:',
-          fileSize / 1024 / 1024,
-          'MB'
-        )
+        },
+        onError: error => {
+          setUploadStatus('error')
+          setPreventClose(false)
 
-        // Create FormData
-        const uploadFormData = new FormData()
-        uploadFormData.append('noteFile', values.noteFile)
+          // Enhanced error handling for different error types
+          let errorMessage = 'Failed to upload note. Please try again.'
 
-        // Add form data (convert tags array back to string)
-        const formDataToSend = {
-          ...values,
-          degreeType: selectedDegreeType,
-          tags: Array.isArray(values.tags)
-            ? values.tags.join(', ')
-            : values.tags,
-        }
-
-        // Add all form fields except file
-        Object.entries(formDataToSend).forEach(([key, value]) => {
-          if (key !== 'noteFile' && value !== undefined && value !== '') {
-            uploadFormData.append(key, String(value))
+          if (
+            error.code === 'ECONNABORTED' ||
+            error.message?.includes('timeout')
+          ) {
+            errorMessage =
+              'Upload timed out. Please check your internet connection and try again.'
+          } else if (error.message?.includes('Network Error')) {
+            errorMessage =
+              'Network connection lost. Please check your internet and try again.'
+          } else if (error.response?.data?.message) {
+            errorMessage = error.response.data.message
+          } else if (error.message) {
+            errorMessage = error.message
           }
-        })
 
-        // Add Google Drive token if available
-        const googleDriveToken = localStorage.getItem('googleDriveToken')
-        if (googleDriveToken) {
-          uploadFormData.append('googleDriveToken', googleDriveToken)
-        }
-
-        // Use React Query mutation
-        uploadNote(uploadFormData, {
-          onSuccess: result => {
-            setUploadStatus('success')
-            setPreventClose(false)
-
-            if (result.success) {
-              // Reset form on success
-              form.reset(defaultUploadValues)
-              // Reset file input
-              if (fileInputRef.current) {
-                fileInputRef.current.value = ''
+          // Set form errors based on API response
+          if (error.response?.data?.errors) {
+            Object.entries(error.response.data.errors).forEach(
+              ([field, message]) => {
+                form.setError(field, { message })
               }
-            }
-          },
-          onError: error => {
-            setUploadStatus('error')
-            setPreventClose(false)
-
-            // Enhanced error handling for different error types
-            let errorMessage = 'Failed to upload note. Please try again.'
-
-            if (
-              error.code === 'ECONNABORTED' ||
-              error.message?.includes('timeout')
-            ) {
-              errorMessage =
-                'Upload timed out. Please check your internet connection and try again.'
-            } else if (error.message?.includes('Network Error')) {
-              errorMessage =
-                'Network connection lost. Please check your internet and try again.'
-            } else if (error.response?.data?.message) {
-              errorMessage = error.response.data.message
-            } else if (error.message) {
-              errorMessage = error.message
-            }
-
-            // Set form errors based on API response
-            if (error.response?.data?.errors) {
-              Object.entries(error.response.data.errors).forEach(
-                ([field, message]) => {
-                  form.setError(field, { message })
-                }
-              )
-            } else {
-              form.setError('root', { message: errorMessage })
-            }
-          },
-        })
-      }
+            )
+          } else {
+            form.setError('root', { message: errorMessage })
+          }
+        },
+      })
     } catch (error) {
       console.error('Upload error:', error)
       setUploadStatus('error')
@@ -401,12 +303,9 @@ const UploadNote = () => {
       // Enhanced error handling for different error types
       let errorMessage = 'Failed to upload note. Please try again.'
 
-      if (error.message?.includes('timeout')) {
+      if (error.message?.includes('Network Error')) {
         errorMessage =
-          'Upload timed out. You can resume it later if using chunked upload.'
-      } else if (error.message?.includes('Network Error')) {
-        errorMessage =
-          'Network connection lost. The upload can be resumed when connection is restored.'
+          'Network connection lost. Please check your internet and try again.'
       } else if (error.message) {
         errorMessage = error.message
       }
@@ -508,12 +407,11 @@ const UploadNote = () => {
                                   onChange(file) // Update form state
                                 }
                               }}
-                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                                !driveStatus.canUpload
-                                  ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
-                                  : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-                              }`}
-                              // Don't spread field props for file inputs
+                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${!driveStatus.canUpload
+                                ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
+                                : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
+                                }`}
+                            // Don't spread field props for file inputs
                             />
                             {value && (
                               <div className='space-y-1'>
@@ -523,10 +421,9 @@ const UploadNote = () => {
                                   {(value.size / 1024 / 1024).toFixed(2)} MB)
                                 </p>
                                 {value.size > 50 * 1024 * 1024 && (
-                                  <p className='text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1'>
+                                  <p className='text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1'>
                                     <Upload className='w-3 h-3' />
-                                    Will use chunked upload for optimal
-                                    performance
+                                    Large file detected - may take longer to upload
                                   </p>
                                 )}
                               </div>
@@ -1097,7 +994,7 @@ const UploadNote = () => {
                       {/* View PDF Button */}
                       {uploadResult.file?.webViewLink &&
                         uploadResult.file.webViewLink !==
-                          'https://drive.google.com/drive/my-drive' && (
+                        'https://drive.google.com/drive/my-drive' && (
                           <div className='mt-4'>
                             <Button
                               asChild
@@ -1194,14 +1091,12 @@ const UploadNote = () => {
           setUploadFileName('')
           setPreventClose(false)
           setUploadProgress(0)
-          setIsChunkedUpload(false)
         }}
         uploadStatus={uploadStatus}
         fileName={uploadFileName}
         uploadResult={uploadResult}
         uploadError={uploadError}
         uploadProgress={uploadProgress}
-        isChunkedUpload={isChunkedUpload}
       />
     </div>
   )

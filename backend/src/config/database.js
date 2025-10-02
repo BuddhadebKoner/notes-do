@@ -33,7 +33,7 @@ class DatabaseConnection {
       });
 
       mongoose.connection.on('disconnected', () => {
-         console.warn('⚠️  Database disconnected');
+
          this.isConnected = false;
          if (!this.isRetrying) {
             this.retryConnection();

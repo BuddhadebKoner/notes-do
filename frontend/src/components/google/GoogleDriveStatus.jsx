@@ -56,7 +56,7 @@ const GoogleDriveStatus = ({ onConnectionChange, className = '' }) => {
     setConnectionError(null)
 
     try {
-      console.log('Starting Google Drive connection...')
+
 
       // Get Clerk token for authentication
       let token = null
@@ -64,14 +64,11 @@ const GoogleDriveStatus = ({ onConnectionChange, className = '' }) => {
 
       while (retries > 0 && !token) {
         try {
-          console.log(`Attempting to get token (attempt ${4 - retries})...`)
+
           token = await getToken()
           if (token) break
         } catch (tokenError) {
-          console.warn(
-            `Token fetch attempt failed, ${retries - 1} retries left:`,
-            tokenError
-          )
+
           retries--
           if (retries > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000))
@@ -109,7 +106,7 @@ const GoogleDriveStatus = ({ onConnectionChange, className = '' }) => {
         throw new Error(data.message || 'Failed to get authentication URL')
       }
 
-      console.log('Redirecting to Google Drive auth:', data.authUrl)
+
 
       // Redirect to Google's OAuth page
       window.location.href = data.authUrl

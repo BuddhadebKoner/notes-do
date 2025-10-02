@@ -155,13 +155,13 @@ const NotesFeedPage = () => {
   // Handle note actions
   const handleViewNote = noteId => {
     // TODO: Navigate to note detail page or open in modal
-    console.log('View note:', noteId)
+
     window.open(`/note/${noteId}`, '_blank')
   }
 
   const handleDownloadNote = noteId => {
     // TODO: Handle note download
-    console.log('Download note:', noteId)
+
     window.open(`/api/notes/${noteId}/download`, '_blank')
   }
 
@@ -456,38 +456,38 @@ const NotesFeedPage = () => {
                     value &&
                     value !== 'all'
                 )) && (
-                <div className='flex items-center gap-2 flex-wrap'>
-                  <span className='text-sm text-gray-600'>Active:</span>
-                  {searchTerm && (
-                    <Badge
-                      variant='secondary'
-                      className='text-xs cursor-pointer hover:bg-gray-200'
-                      onClick={() => clearSpecificFilter('search')}
-                    >
-                      search: "{searchTerm}" ×
-                    </Badge>
-                  )}
-                  {Object.entries(filters).map(([key, value]) => {
-                    if (
-                      key === 'sortBy' ||
-                      key === 'sortOrder' ||
-                      !value ||
-                      value === 'all'
-                    )
-                      return null
-                    return (
+                  <div className='flex items-center gap-2 flex-wrap'>
+                    <span className='text-sm text-gray-600'>Active:</span>
+                    {searchTerm && (
                       <Badge
-                        key={key}
                         variant='secondary'
                         className='text-xs cursor-pointer hover:bg-gray-200'
-                        onClick={() => clearSpecificFilter(key)}
+                        onClick={() => clearSpecificFilter('search')}
                       >
-                        {key}: {value} ×
+                        search: "{searchTerm}" ×
                       </Badge>
-                    )
-                  })}
-                </div>
-              )}
+                    )}
+                    {Object.entries(filters).map(([key, value]) => {
+                      if (
+                        key === 'sortBy' ||
+                        key === 'sortOrder' ||
+                        !value ||
+                        value === 'all'
+                      )
+                        return null
+                      return (
+                        <Badge
+                          key={key}
+                          variant='secondary'
+                          className='text-xs cursor-pointer hover:bg-gray-200'
+                          onClick={() => clearSpecificFilter(key)}
+                        >
+                          {key}: {value} ×
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                )}
 
               <Button
                 variant='outline'

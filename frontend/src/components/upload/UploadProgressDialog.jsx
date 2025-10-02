@@ -7,9 +7,8 @@ import {
   DialogTitle,
 } from '../ui/dialog'
 import { Button } from '../ui/button'
-import { Progress } from '../ui/progress'
 import { Badge } from '../ui/badge'
-import { CheckCircle, Upload, AlertCircle, Loader2, X, Zap } from 'lucide-react'
+import { CheckCircle, Upload, AlertCircle, Loader2, X } from 'lucide-react'
 
 const UploadProgressDialog = ({
   isOpen,
@@ -19,7 +18,6 @@ const UploadProgressDialog = ({
   uploadResult,
   uploadError,
   uploadProgress = 0,
-  isChunkedUpload = false,
 }) => {
   const getStatusIcon = () => {
     switch (uploadStatus) {
@@ -37,9 +35,7 @@ const UploadProgressDialog = ({
   const getStatusText = () => {
     switch (uploadStatus) {
       case 'uploading':
-        return isChunkedUpload
-          ? 'Chunked Upload in Progress...'
-          : 'Uploading to Google Drive...'
+        return 'Uploading to Google Drive...'
       case 'processing':
         return 'Processing file...'
       case 'success':
@@ -54,9 +50,6 @@ const UploadProgressDialog = ({
   const getStatusDescription = () => {
     switch (uploadStatus) {
       case 'uploading':
-        if (isChunkedUpload) {
-          return `Uploading "${fileName}" using chunked upload for optimal reliability. Progress: ${Math.round(uploadProgress)}%`
-        }
         return `Uploading "${fileName}" to your Google Drive. Please don't close this tab or navigate away.`
       case 'processing':
         return 'Finalizing upload and organizing in your Google Drive...'
@@ -68,7 +61,7 @@ const UploadProgressDialog = ({
       case 'error':
         // Handle specific error types
         if (uploadError?.message?.includes('timeout')) {
-          return 'Upload timed out due to network issues. This usually happens with large files or slow internet. Please try again with a better connection.'
+          return 'Upload timed out due to network issues. Please try again with a better connection.'
         }
         if (uploadError?.message?.includes('Network Error')) {
           return 'Network connection lost during upload. Please check your internet connection and try again.'
@@ -92,12 +85,6 @@ const UploadProgressDialog = ({
           <DialogTitle className='flex items-center gap-3'>
             {getStatusIcon()}
             {getStatusText()}
-            {isChunkedUpload && (
-              <Badge variant='outline' className='text-xs'>
-                <Zap className='h-3 w-3 mr-1' />
-                Chunked
-              </Badge>
-            )}
           </DialogTitle>
           <DialogDescription>{getStatusDescription()}</DialogDescription>
         </DialogHeader>
@@ -112,24 +99,13 @@ const UploadProgressDialog = ({
           {/* Upload Progress */}
           {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
             <div className='space-y-3'>
-              {isChunkedUpload && uploadProgress > 0 && (
-                <div className='space-y-2'>
-                  <Progress value={uploadProgress} className='w-full' />
-                  <div className='flex justify-between text-xs text-muted-foreground'>
-                    <span>{Math.round(uploadProgress)}% Complete</span>
-                    <span>Chunked upload</span>
-                  </div>
-                </div>
-              )}
               <div className='flex items-center justify-center py-2'>
                 <div className='flex items-center space-x-3'>
                   <Loader2 className='w-5 h-5 text-blue-500 animate-spin' />
                   <span className='text-sm text-muted-foreground'>
                     {uploadStatus === 'processing'
                       ? 'Processing file...'
-                      : isChunkedUpload
-                        ? 'Uploading chunks...'
-                        : 'Uploading to Google Drive...'}
+                      : 'Uploading to Google Drive...'}
                   </span>
                 </div>
               </div>

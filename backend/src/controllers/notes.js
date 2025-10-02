@@ -96,7 +96,7 @@ export const uploadNote = async (req, res) => {
             // Decode the token from localStorage
             tokenData = JSON.parse(Buffer.from(googleDriveToken, 'base64').toString());
          } catch (error) {
-            console.error('Failed to decode Google Drive token:', error);
+            // Failed to decode Google Drive token
          }
       }
 
@@ -118,7 +118,6 @@ export const uploadNote = async (req, res) => {
                storageLocation = 'google-drive';
             }
          } catch (driveError) {
-            console.error('Google Drive upload failed, falling back to local storage:', driveError);
             driveResult = null; // Ensure we fall back to local storage
          }
       }
@@ -135,7 +134,7 @@ export const uploadNote = async (req, res) => {
             try {
                await fs.mkdir(uploadsDir, { recursive: true });
             } catch (mkdirError) {
-               console.log('Upload directory already exists');
+               // Directory already exists, continue
             }
 
             // Save file locally
@@ -155,8 +154,6 @@ export const uploadNote = async (req, res) => {
                }
             };
             storageLocation = 'local';
-
-            console.log('File saved locally at:', localFilePath);
          } catch (localError) {
             throw new Error(`Failed to save file locally: ${localError.message}`);
          }
@@ -281,9 +278,8 @@ export const uploadNote = async (req, res) => {
          try {
             const fs = await import('fs').then(m => m.promises);
             await fs.unlink(localFilePath);
-            console.log('Cleaned up local file after successful Google Drive upload:', localFilePath);
          } catch (cleanupError) {
-            console.warn('Failed to clean up local file:', cleanupError.message);
+            // Failed to clean up local file, but not critical
          }
       }
 
@@ -548,7 +544,6 @@ export const getNotesFeed = async (req, res) => {
          }
       };
 
-      console.log(`Feed response: ${transformedNotes.length} notes, page ${pageNum}/${Math.ceil(total / limitNum)}`);
       res.json(response);
 
    } catch (error) {
@@ -1059,38 +1054,16 @@ export const deleteNote = async (req, res) => {
          });
       }
 
-      console.log('🗑️ Starting deletion process for note:', note.title);
-
       // Step 1: Delete from Google Drive (if user has connected Google Drive)
       let driveDeleteResult = null;
       const { googleDriveToken } = req.body;
 
-      console.log('📋 Deletion request details:');
-      console.log('   • Note ID:', id);
-      console.log('   • Note title:', note.title);
-      console.log('   • Drive file ID:', note.file.driveFileId);
-      console.log('   • Google Drive token provided:', !!googleDriveToken);
-      console.log('   • Token length:', googleDriveToken ? googleDriveToken.length : 0);
-
       if (googleDriveToken && note.file.driveFileId) {
          try {
             // Decode the Google Drive token
-            console.log('🔓 Decoding Google Drive token...');
             const tokenData = JSON.parse(Buffer.from(googleDriveToken, 'base64').toString('utf-8'));
-            console.log('✅ Token decoded successfully');
-
-            console.log('🔄 Deleting file from Google Drive...');
-            console.log('   • Drive file ID to delete:', note.file.driveFileId);
-
             driveDeleteResult = await deleteFromUserDrive(note.file.driveFileId, tokenData);
-
-            if (driveDeleteResult.success) {
-               console.log('✅ Google Drive deletion completed successfully');
-            } else {
-               console.warn('⚠️ Google Drive deletion failed but continuing with database cleanup:', driveDeleteResult.error);
-            }
          } catch (tokenError) {
-            console.warn('⚠️ Failed to process Google Drive token, skipping Drive deletion:', tokenError.message);
             driveDeleteResult = {
                success: false,
                error: `Invalid Google Drive token: ${tokenError.message}`,
@@ -1098,14 +1071,12 @@ export const deleteNote = async (req, res) => {
             };
          }
       } else if (!googleDriveToken) {
-         console.log('ℹ️ No Google Drive token provided, skipping Drive deletion');
          driveDeleteResult = {
             success: true,
             message: 'Google Drive deletion skipped (no token provided)',
             skipped: true
          };
       } else if (!note.file.driveFileId) {
-         console.log('⚠️ No drive file ID found for note, skipping Drive deletion');
          driveDeleteResult = {
             success: true,
             message: 'Google Drive deletion skipped (no file ID found)',
@@ -1114,8 +1085,6 @@ export const deleteNote = async (req, res) => {
       }
 
       // Step 2: Immediate cleanup (uploader only) + Background processing for user associations
-      console.log('🔄 Performing immediate cleanup...');
-
       // Remove from uploader's notesUploaded array (immediate)
       await User.findByIdAndUpdate(
          currentUserId,
@@ -1126,25 +1095,19 @@ export const deleteNote = async (req, res) => {
       );
 
       // Step 3: Delete the note from database immediately (user gets instant feedback)
-      console.log('🔄 Deleting note from database...');
       await Note.findByIdAndDelete(id);
 
       // Step 4: Start background cleanup process for user associations (non-blocking)
-      console.log('� Starting background cleanup for user associations...');
+
 
       // Fire and forget - this runs in background without blocking the response
       setImmediate(async () => {
          try {
             await cleanupNoteAssociations(id, note.title);
          } catch (bgError) {
-            console.error('❌ Background cleanup error for note', id, ':', bgError.message);
             // Could implement retry logic or dead letter queue here
          }
       });
-
-      console.log('✅ Note deletion completed successfully');
-
-      console.log('✅ Note deletion completed successfully (background cleanup in progress)');
 
       // Prepare response message
       let message = `Note "${note.title}" has been successfully deleted from the database`;
@@ -1183,7 +1146,7 @@ export const deleteNote = async (req, res) => {
       });
 
    } catch (error) {
-      console.error('❌ Error deleting note:', error);
+      console.error('Error deleting note:', error);
       res.status(500).json({
          success: false,
          message: 'Failed to delete note',
@@ -1195,7 +1158,6 @@ export const deleteNote = async (req, res) => {
 // Optimized background cleanup function for user associations
 const cleanupNoteAssociations = async (noteId, noteTitle) => {
    const startTime = Date.now();
-   console.log(`🧹 Starting background cleanup for note: ${noteTitle} (ID: ${noteId})`);
 
    try {
       // Use bulk operations with batching for better performance
@@ -1205,7 +1167,6 @@ const cleanupNoteAssociations = async (noteId, noteTitle) => {
       let totalLegacyRemoved = 0;
 
       // 1. Clean up favorites in batches using efficient bulk operations
-      console.log('📌 Cleaning up favorites...');
       const favoritesResult = await User.updateMany(
          { 'activity.favoriteNotes': noteId },
          {
@@ -1219,7 +1180,6 @@ const cleanupNoteAssociations = async (noteId, noteTitle) => {
       totalFavoritesRemoved = favoritesResult.modifiedCount;
 
       // 2. Clean up wishlists in batches using efficient aggregation
-      console.log('📋 Cleaning up wishlists...');
       const wishlistsResult = await User.updateMany(
          { 'activity.wishlists.notes.note': noteId },
          {
@@ -1234,7 +1194,6 @@ const cleanupNoteAssociations = async (noteId, noteTitle) => {
       totalWishlistsUpdated = wishlistsResult.modifiedCount;
 
       // 3. Clean up legacy wishlist (single operation)
-      console.log('🗂️ Cleaning up legacy wishlists...');
       const legacyResult = await User.updateMany(
          { 'activity.wishlistNotes': noteId },
          { $pull: { 'activity.wishlistNotes': noteId } },
@@ -1244,14 +1203,6 @@ const cleanupNoteAssociations = async (noteId, noteTitle) => {
 
       const endTime = Date.now();
       const duration = endTime - startTime;
-
-      console.log(`✅ Background cleanup completed for note: ${noteTitle}`);
-      console.log(`📊 Cleanup Statistics:`);
-      console.log(`   • Favorites removed: ${totalFavoritesRemoved} users`);
-      console.log(`   • Wishlists updated: ${totalWishlistsUpdated} users`);
-      console.log(`   • Legacy entries removed: ${totalLegacyRemoved} users`);
-      console.log(`   • Total duration: ${duration}ms`);
-      console.log(`   • Performance: ${Math.round((totalFavoritesRemoved + totalWishlistsUpdated + totalLegacyRemoved) / (duration / 1000))} operations/second`);
 
       return {
          success: true,
@@ -1265,12 +1216,6 @@ const cleanupNoteAssociations = async (noteId, noteTitle) => {
       };
 
    } catch (error) {
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-
-      console.error(`❌ Background cleanup failed for note: ${noteTitle} (${duration}ms)`);
-      console.error('Error details:', error.message);
-
       // In production, you might want to:
       // 1. Retry the operation with exponential backoff
       // 2. Store failed operations in a dead letter queue

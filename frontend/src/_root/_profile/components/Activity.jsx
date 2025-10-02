@@ -23,7 +23,7 @@ const Activity = () => {
   const { data: followersData, isLoading: followersLoading } = useGetFollowers()
   const { data: followingData, isLoading: followingLoading } = useGetFollowing()
 
-  console.log(followersData, followingData, statsData)
+
 
   if (statsLoading) {
     return (

@@ -14,21 +14,12 @@ const GoogleCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        console.log('Processing Google Drive callback...')
-        console.log('Current URL:', window.location.href)
-        console.log('API Base URL:', API_ENDPOINTS.BASE_URL)
+
 
         // Get the authorization code from URL
         const urlParams = new URLSearchParams(window.location.search)
         const code = urlParams.get('code')
         const error = urlParams.get('error')
-
-        console.log(
-          'URL params - code:',
-          code ? 'present' : 'missing',
-          'error:',
-          error
-        )
 
         if (error) {
           setStatus('error')
@@ -65,10 +56,7 @@ const GoogleCallback = () => {
             token = await getToken()
             if (token) break
           } catch (tokenError) {
-            console.warn(
-              `Token fetch attempt failed, ${retries - 1} retries left:`,
-              tokenError
-            )
+
             retries--
             if (retries > 0) {
               await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1s before retry
@@ -87,7 +75,7 @@ const GoogleCallback = () => {
 
         // Send code to backend to exchange for tokens
         const apiUrl = `${API_ENDPOINTS.BASE_URL}${API_ENDPOINTS.GOOGLE.CALLBACK}`
-        console.log('Sending authorization code to:', apiUrl)
+
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -98,7 +86,7 @@ const GoogleCallback = () => {
           body: JSON.stringify({ code }),
         })
 
-        console.log('Callback response status:', response.status)
+
 
         if (!response.ok) {
           const errorText = await response.text()
