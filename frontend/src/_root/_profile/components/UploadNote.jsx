@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react'
-import { setAuthToken } from '../../../config/api.js'
+import api, { setAuthToken, API_ENDPOINTS } from '../../../config/api.js'
 import { useUploadNote } from '../../../lib/react-query/queriesAndMutation.js'
-import GoogleDriveConnect from '../../../components/google/GoogleDriveConnect.jsx'
+import chunkedUploadService from '../../../services/chunkedUploadService.js'
+import GoogleDriveStatus from '../../../components/google/GoogleDriveStatus.jsx'
 import UploadProgressDialog from '../../../components/upload/UploadProgressDialog.jsx'
 import {
   uploadNoteFormSchema,
@@ -58,6 +59,7 @@ import {
   ExternalLink,
   User,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 const UploadNote = () => {
   const { getToken } = useClerkAuth()
@@ -69,14 +71,19 @@ const UploadNote = () => {
     error: uploadError,
   } = useUploadNote()
 
-  const [driveConnected, setDriveConnected] = useState(
-    localStorage.getItem('googleDriveToken') !== null
-  )
+  // Google Drive connection status
+  const [driveStatus, setDriveStatus] = useState({
+    isConnected: localStorage.getItem('googleDriveToken') !== null,
+    canUpload: false,
+    accountInfo: null,
+  })
   const [selectedDegreeType, setSelectedDegreeType] = useState('bachelor')
   const [uploadStatus, setUploadStatus] = useState('idle') // 'idle', 'uploading', 'success', 'error'
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadFileName, setUploadFileName] = useState('')
   const [preventClose, setPreventClose] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isChunkedUpload, setIsChunkedUpload] = useState(false)
   const fileInputRef = useRef(null)
 
   const form = useForm({
@@ -117,11 +124,74 @@ const UploadNote = () => {
     }
   }
 
+  // Status polling for background processing
+  const startStatusPolling = noteId => {
+    if (!noteId) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const token = await getToken()
+        const response = await api.get(
+          `${API_ENDPOINTS.NOTES.CHECK_STATUS}/${noteId}/status`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        )
+
+        if (response.data.success) {
+          const note = response.data.note
+
+          if (note.status === 'approved' && note.isReady) {
+            // Processing complete!
+            clearInterval(pollInterval)
+            setUploadStatus('success')
+            setPreventClose(false)
+
+            // Reset form on final success
+            form.reset(defaultUploadValues)
+            if (fileInputRef.current) {
+              fileInputRef.current.value = ''
+            }
+
+            toast.success(
+              'Google Drive processing completed! Your note is now available.'
+            )
+          } else if (note.status === 'processing') {
+            // Still processing, continue polling
+            console.log('📋 Note still processing:', note.title)
+          }
+        }
+      } catch (error) {
+        console.error('Status polling error:', error)
+        // Continue polling despite errors
+      }
+    }, 5000) // Poll every 5 seconds
+
+    // Clear interval after 10 minutes (fallback)
+    setTimeout(
+      () => {
+        clearInterval(pollInterval)
+        if (uploadStatus === 'processing') {
+          setUploadStatus('success')
+          setPreventClose(false)
+          toast.info(
+            'Background processing may still be in progress. Check your uploaded notes.'
+          )
+        }
+      },
+      10 * 60 * 1000
+    ) // 10 minutes
+  }
+
   const onSubmit = async values => {
-    // Check Google Drive connection first
-    if (!driveConnected) {
+    // Check Google Drive connection and upload capability
+    if (!driveStatus.canUpload) {
+      const errorMessage = !driveStatus.isConnected
+        ? 'Please connect to Google Drive before uploading notes.'
+        : 'Upload not available. Please ensure you have sufficient storage space (minimum 100MB) in your Google Drive.'
+
       form.setError('root', {
-        message: 'Please connect to Google Drive before uploading notes.',
+        message: errorMessage,
       })
       return
     }
@@ -147,91 +217,201 @@ const UploadNote = () => {
       // Set auth token
       setAuthToken(token)
 
-      // Create FormData
-      const uploadFormData = new FormData()
-
-      // Add file
-      uploadFormData.append('noteFile', values.noteFile)
-
-      // Add form data (convert tags array back to string)
-      const formDataToSend = {
-        ...values,
-        degreeType: selectedDegreeType, // Ensure degreeType is included
-        tags: Array.isArray(values.tags) ? values.tags.join(', ') : values.tags,
-      }
-
-      // Add all form fields except file
-      Object.entries(formDataToSend).forEach(([key, value]) => {
-        if (key !== 'noteFile' && value !== undefined && value !== '') {
-          uploadFormData.append(key, String(value))
-        }
-      })
-
-      // Add Google Drive token if available
-      const googleDriveToken = localStorage.getItem('googleDriveToken')
-      if (googleDriveToken) {
-        uploadFormData.append('googleDriveToken', googleDriveToken)
-      }
+      // Determine upload method based on file size
+      const fileSize = values.noteFile.size
+      const isLargeFile = fileSize > 50 * 1024 * 1024 // 50MB threshold
 
       // Show upload dialog and prevent browser closing
       setUploadFileName(values.noteFile.name)
       setUploadStatus('uploading')
       setShowUploadDialog(true)
       setPreventClose(true)
+      setIsChunkedUpload(isLargeFile)
+      setUploadProgress(0)
 
-      // Use React Query mutation
-      uploadNote(uploadFormData, {
-        onSuccess: result => {
-          setUploadStatus('success')
-          setPreventClose(false)
+      if (isLargeFile) {
+        // Use chunked upload for large files (>50MB)
+        console.log(
+          '🚀 Using chunked upload for large file:',
+          fileSize / 1024 / 1024,
+          'MB'
+        )
 
-          if (result.success) {
+        // Prepare metadata for chunked upload
+        const metadata = {
+          title: values.title,
+          description: values.description,
+          university: values.university,
+          department: values.department,
+          course: values.course,
+          semester: values.semester,
+          academicYear: values.academicYear,
+          subject: values.subject,
+          category: values.category,
+          difficulty: values.difficulty,
+          tags: Array.isArray(values.tags)
+            ? values.tags.join(', ')
+            : values.tags,
+          chapters: values.chapters || '',
+          visibility: values.visibility,
+          degreeType: selectedDegreeType,
+        }
+
+        // Get Google Drive token
+        const googleDriveToken = localStorage.getItem('googleDriveToken')
+
+        // Start chunked upload
+        const result = await chunkedUploadService.uploadFile(
+          values.noteFile,
+          metadata,
+          {
+            googleDriveToken,
+            concurrency: 3,
+            enableResume: true,
+            onProgress: progressData => {
+              console.log('📊 Chunked upload progress:', progressData)
+              setUploadProgress(progressData.progress || 0)
+
+              // Update status based on progress
+              if (progressData.progress >= 100) {
+                setUploadStatus('success')
+              } else if (progressData.status === 'completing') {
+                setUploadStatus('processing')
+              }
+            },
+          }
+        )
+
+        if (result.success) {
+          // Check if the note is in processing status
+          if (
+            result.status === 'processing' ||
+            result.storageLocation === 'processing'
+          ) {
+            setUploadStatus('processing')
+            // Show processing message but don't reset form yet
+            toast.success(
+              'File uploaded successfully! Google Drive processing in progress...'
+            )
+
+            // Optional: Start polling for status updates
+            startStatusPolling(result.note._id)
+          } else {
+            setUploadStatus('success')
+            setPreventClose(false)
+
             // Reset form on success
             form.reset(defaultUploadValues)
-            // Reset file input
             if (fileInputRef.current) {
               fileInputRef.current.value = ''
             }
           }
-        },
-        onError: error => {
-          setUploadStatus('error')
-          setPreventClose(false)
+        } else {
+          throw new Error(result.message || 'Chunked upload failed')
+        }
+      } else {
+        // Use traditional upload for smaller files (≤50MB)
+        console.log(
+          '📤 Using traditional upload for small file:',
+          fileSize / 1024 / 1024,
+          'MB'
+        )
 
-          // Enhanced error handling for different error types
-          let errorMessage = 'Failed to upload note. Please try again.'
+        // Create FormData
+        const uploadFormData = new FormData()
+        uploadFormData.append('noteFile', values.noteFile)
 
-          if (
-            error.code === 'ECONNABORTED' ||
-            error.message?.includes('timeout')
-          ) {
-            errorMessage =
-              'Upload timed out. Please check your internet connection and try again.'
-          } else if (error.message?.includes('Network Error')) {
-            errorMessage =
-              'Network connection lost. Please check your internet and try again.'
-          } else if (error.response?.data?.message) {
-            errorMessage = error.response.data.message
-          } else if (error.message) {
-            errorMessage = error.message
+        // Add form data (convert tags array back to string)
+        const formDataToSend = {
+          ...values,
+          degreeType: selectedDegreeType,
+          tags: Array.isArray(values.tags)
+            ? values.tags.join(', ')
+            : values.tags,
+        }
+
+        // Add all form fields except file
+        Object.entries(formDataToSend).forEach(([key, value]) => {
+          if (key !== 'noteFile' && value !== undefined && value !== '') {
+            uploadFormData.append(key, String(value))
           }
+        })
 
-          // Set form errors based on API response
-          if (error.response?.data?.errors) {
-            Object.entries(error.response.data.errors).forEach(
-              ([field, message]) => {
-                form.setError(field, { message })
+        // Add Google Drive token if available
+        const googleDriveToken = localStorage.getItem('googleDriveToken')
+        if (googleDriveToken) {
+          uploadFormData.append('googleDriveToken', googleDriveToken)
+        }
+
+        // Use React Query mutation
+        uploadNote(uploadFormData, {
+          onSuccess: result => {
+            setUploadStatus('success')
+            setPreventClose(false)
+
+            if (result.success) {
+              // Reset form on success
+              form.reset(defaultUploadValues)
+              // Reset file input
+              if (fileInputRef.current) {
+                fileInputRef.current.value = ''
               }
-            )
-          } else {
-            form.setError('root', { message: errorMessage })
-          }
-        },
-      })
+            }
+          },
+          onError: error => {
+            setUploadStatus('error')
+            setPreventClose(false)
+
+            // Enhanced error handling for different error types
+            let errorMessage = 'Failed to upload note. Please try again.'
+
+            if (
+              error.code === 'ECONNABORTED' ||
+              error.message?.includes('timeout')
+            ) {
+              errorMessage =
+                'Upload timed out. Please check your internet connection and try again.'
+            } else if (error.message?.includes('Network Error')) {
+              errorMessage =
+                'Network connection lost. Please check your internet and try again.'
+            } else if (error.response?.data?.message) {
+              errorMessage = error.response.data.message
+            } else if (error.message) {
+              errorMessage = error.message
+            }
+
+            // Set form errors based on API response
+            if (error.response?.data?.errors) {
+              Object.entries(error.response.data.errors).forEach(
+                ([field, message]) => {
+                  form.setError(field, { message })
+                }
+              )
+            } else {
+              form.setError('root', { message: errorMessage })
+            }
+          },
+        })
+      }
     } catch (error) {
-      form.setError('root', {
-        message: 'An unexpected error occurred. Please try again.',
-      })
+      console.error('Upload error:', error)
+      setUploadStatus('error')
+      setPreventClose(false)
+
+      // Enhanced error handling for different error types
+      let errorMessage = 'Failed to upload note. Please try again.'
+
+      if (error.message?.includes('timeout')) {
+        errorMessage =
+          'Upload timed out. You can resume it later if using chunked upload.'
+      } else if (error.message?.includes('Network Error')) {
+        errorMessage =
+          'Network connection lost. The upload can be resumed when connection is restored.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      form.setError('root', { message: errorMessage })
     }
   }
 
@@ -248,13 +428,13 @@ const UploadNote = () => {
 
         <Card>
           <CardContent className='p-6'>
-            {/* Google Drive Connection */}
+            {/* Google Drive Status */}
             <div className='mb-6'>
-              <GoogleDriveConnect onConnected={setDriveConnected} />
+              <GoogleDriveStatus onConnectionChange={setDriveStatus} />
             </div>
 
-            {/* Connection Required Notice */}
-            {!driveConnected && (
+            {/* Upload Restriction Notice */}
+            {!driveStatus.canUpload && (
               <Card className='mb-6 border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800'>
                 <CardContent className='p-6'>
                   <div className='flex items-start'>
@@ -265,10 +445,14 @@ const UploadNote = () => {
                     </div>
                     <div className='ml-4'>
                       <h3 className='text-lg font-medium text-amber-800 dark:text-amber-200 mb-2'>
-                        Google Drive Connection Required
+                        {!driveStatus.isConnected
+                          ? 'Google Drive Connection Required'
+                          : 'Upload Currently Unavailable'}
                       </h3>
                       <p className='text-sm text-amber-700 dark:text-amber-300'>
-                        You must connect to Google Drive before uploading notes.
+                        {!driveStatus.isConnected
+                          ? 'You must connect to Google Drive before uploading notes.'
+                          : 'Please ensure you have sufficient storage space (minimum 100MB) in your Google Drive.'}
                         All notes are stored in your Google Drive for easy
                         access and backup.
                       </p>
@@ -280,7 +464,7 @@ const UploadNote = () => {
 
             <Form {...form}>
               <div
-                className={`relative ${!driveConnected ? 'opacity-60 pointer-events-none' : ''}`}
+                className={`relative ${!driveStatus.canUpload ? 'opacity-60 pointer-events-none' : ''}`}
               >
                 <form
                   onSubmit={form.handleSubmit(onSubmit)}
@@ -317,7 +501,7 @@ const UploadNote = () => {
                               type='file'
                               accept='.pdf'
                               ref={fileInputRef}
-                              disabled={!driveConnected}
+                              disabled={!driveStatus.canUpload}
                               onChange={e => {
                                 const file = e.target.files?.[0]
                                 if (file) {
@@ -325,18 +509,27 @@ const UploadNote = () => {
                                 }
                               }}
                               className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                                !driveConnected
+                                !driveStatus.canUpload
                                   ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
                                   : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
                               }`}
                               // Don't spread field props for file inputs
                             />
                             {value && (
-                              <p className='text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2'>
-                                <CheckCircle className='w-3 h-3' />
-                                Selected: {value.name} (
-                                {(value.size / 1024 / 1024).toFixed(2)} MB)
-                              </p>
+                              <div className='space-y-1'>
+                                <p className='text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2'>
+                                  <CheckCircle className='w-3 h-3' />
+                                  Selected: {value.name} (
+                                  {(value.size / 1024 / 1024).toFixed(2)} MB)
+                                </p>
+                                {value.size > 50 * 1024 * 1024 && (
+                                  <p className='text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1'>
+                                    <Upload className='w-3 h-3' />
+                                    Will use chunked upload for optimal
+                                    performance
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         </FormControl>
@@ -368,7 +561,7 @@ const UploadNote = () => {
                               <FormControl>
                                 <Input
                                   placeholder='e.g., Data Structures - Linked Lists'
-                                  disabled={!driveConnected}
+                                  disabled={!driveStatus.canUpload}
                                   {...field}
                                 />
                               </FormControl>
@@ -386,7 +579,7 @@ const UploadNote = () => {
                               <FormControl>
                                 <Input
                                   placeholder='e.g., Data Structures'
-                                  disabled={!driveConnected}
+                                  disabled={!driveStatus.canUpload}
                                   {...field}
                                 />
                               </FormControl>
@@ -410,7 +603,7 @@ const UploadNote = () => {
                             placeholder='Brief description of the notes content...'
                             className='resize-none'
                             rows={3}
-                            disabled={!driveConnected}
+                            disabled={!driveStatus.canUpload}
                             {...field}
                           />
                         </FormControl>
@@ -444,7 +637,9 @@ const UploadNote = () => {
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger disabled={!driveConnected}>
+                                  <SelectTrigger
+                                    disabled={!driveStatus.canUpload}
+                                  >
                                     <SelectValue placeholder='Select category' />
                                   </SelectTrigger>
                                 </FormControl>
@@ -478,7 +673,9 @@ const UploadNote = () => {
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger disabled={!driveConnected}>
+                                  <SelectTrigger
+                                    disabled={!driveStatus.canUpload}
+                                  >
                                     <SelectValue placeholder='Select difficulty' />
                                   </SelectTrigger>
                                 </FormControl>
@@ -509,7 +706,9 @@ const UploadNote = () => {
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger disabled={!driveConnected}>
+                                  <SelectTrigger
+                                    disabled={!driveStatus.canUpload}
+                                  >
                                     <SelectValue placeholder='Select visibility' />
                                   </SelectTrigger>
                                 </FormControl>
@@ -765,13 +964,15 @@ const UploadNote = () => {
                     <CardContent className='p-6'>
                       <div className='flex items-center justify-between'>
                         <div className='text-sm text-muted-foreground'>
-                          {!driveConnected && (
+                          {!driveStatus.canUpload && (
                             <span className='text-amber-600 dark:text-amber-400 flex items-center gap-1'>
                               <AlertTriangle className='w-3 h-3' />
-                              Google Drive not connected
+                              {!driveStatus.isConnected
+                                ? 'Google Drive not connected'
+                                : 'Insufficient storage space'}
                             </span>
                           )}
-                          {driveConnected &&
+                          {driveStatus.canUpload &&
                             form.formState.isDirty &&
                             !isUploading && (
                               <span className='text-emerald-600 dark:text-emerald-400 flex items-center gap-1'>
@@ -806,13 +1007,15 @@ const UploadNote = () => {
                             disabled={
                               isUploading ||
                               !form.watch('noteFile') ||
-                              !driveConnected
+                              !driveStatus.canUpload
                             }
                             className='min-w-32'
                             title={
-                              !driveConnected
+                              !driveStatus.isConnected
                                 ? 'Connect to Google Drive first'
-                                : ''
+                                : !driveStatus.hasEnoughSpace
+                                  ? 'Not enough storage space (minimum 100MB required)'
+                                  : ''
                             }
                           >
                             {isUploading ? (
@@ -820,8 +1023,10 @@ const UploadNote = () => {
                                 <Loader2 className='w-4 h-4 animate-spin' />
                                 <span>Uploading...</span>
                               </div>
-                            ) : !driveConnected ? (
+                            ) : !driveStatus.isConnected ? (
                               'Connect Drive First'
+                            ) : !driveStatus.hasEnoughSpace ? (
+                              'Insufficient Storage'
                             ) : (
                               <>
                                 <Upload className='w-4 h-4' />
@@ -988,11 +1193,15 @@ const UploadNote = () => {
           setUploadStatus('idle')
           setUploadFileName('')
           setPreventClose(false)
+          setUploadProgress(0)
+          setIsChunkedUpload(false)
         }}
         uploadStatus={uploadStatus}
         fileName={uploadFileName}
         uploadResult={uploadResult}
         uploadError={uploadError}
+        uploadProgress={uploadProgress}
+        isChunkedUpload={isChunkedUpload}
       />
     </div>
   )

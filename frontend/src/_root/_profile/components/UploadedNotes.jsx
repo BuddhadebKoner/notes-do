@@ -16,10 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select.jsx'
-import { Edit, Share2, BarChart3, Eye, MoreVertical } from 'lucide-react'
+import {
+  Edit,
+  Share2,
+  BarChart3,
+  Eye,
+  MoreVertical,
+  Trash2,
+} from 'lucide-react'
 import EditNoteDialog from '../../../components/notes/EditNoteDialog.jsx'
 import ShareNoteDialog from '../../../components/notes/ShareNoteDialog.jsx'
 import AnalysisDialog from '../../../components/notes/AnalysisDialog.jsx'
+import DeleteNoteDialog from '../../../components/notes/DeleteNoteDialog.jsx'
+import GoogleDriveStatus from '../../../components/google/GoogleDriveStatus.jsx'
+import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 
 const UploadedNotes = () => {
   const [currentPage, setCurrentPage] = useState(1)
@@ -29,6 +40,10 @@ const UploadedNotes = () => {
   const [editDialog, setEditDialog] = useState({ isOpen: false, note: null })
   const [shareDialog, setShareDialog] = useState({ isOpen: false, note: null })
   const [analysisDialog, setAnalysisDialog] = useState({
+    isOpen: false,
+    note: null,
+  })
+  const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
     note: null,
   })
@@ -70,6 +85,19 @@ const UploadedNotes = () => {
 
   const handleAnalysis = note => {
     setAnalysisDialog({ isOpen: true, note })
+  }
+
+  const handleDelete = note => {
+    setDeleteDialog({ isOpen: true, note })
+  }
+
+  const handleBulkDelete = () => {
+    if (selectedNotes.length === 0) return
+
+    // For bulk delete, we'll show a confirmation for all selected notes
+    toast.info(
+      `Bulk delete feature coming soon. Please delete notes individually for now.`
+    )
   }
 
   const NoteListItem = ({ note }) => {
@@ -152,6 +180,16 @@ const UploadedNotes = () => {
           >
             <BarChart3 className='h-4 w-4' />
           </Button>
+
+          <Button
+            size='sm'
+            variant='ghost'
+            onClick={() => handleDelete(note)}
+            className='h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50'
+            title='Delete'
+          >
+            <Trash2 className='h-4 w-4' />
+          </Button>
         </div>
       </div>
     )
@@ -216,6 +254,9 @@ const UploadedNotes = () => {
 
   return (
     <div className='space-y-6'>
+      {/* Google Drive Status */}
+      <GoogleDriveStatus />
+
       {/* Header with Controls */}
       <Card>
         <CardHeader>
@@ -254,7 +295,12 @@ const UploadedNotes = () => {
               </p>
               {selectedNotes.length > 0 && (
                 <div className='flex gap-2'>
-                  <Button size='sm' variant='outline'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={handleBulkDelete}
+                    className='text-red-600 border-red-200 hover:bg-red-50'
+                  >
                     Delete Selected ({selectedNotes.length})
                   </Button>
                   <Button size='sm' variant='outline'>
@@ -315,7 +361,7 @@ const UploadedNotes = () => {
               Start sharing your knowledge by uploading your first note!
             </p>
             <Button size='lg' asChild>
-              <a href='/upload'>Upload Your First Note</a>
+              <Link to='/upload'>Upload Your First Note</Link>
             </Button>
           </CardContent>
         </Card>
@@ -338,6 +384,18 @@ const UploadedNotes = () => {
         isOpen={analysisDialog.isOpen}
         onClose={() => setAnalysisDialog({ isOpen: false, note: null })}
         note={analysisDialog.note}
+      />
+
+      <DeleteNoteDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, note: null })}
+        note={deleteDialog.note}
+        onSuccess={() => {
+          // Remove from selectedNotes if it was selected
+          setSelectedNotes(prev =>
+            prev.filter(id => id !== deleteDialog.note?._id)
+          )
+        }}
       />
     </div>
   )

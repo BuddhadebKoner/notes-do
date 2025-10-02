@@ -15,6 +15,7 @@ import connectDB, { getDBStatus } from './src/config/database.js';
 // Import routes
 import authRoutes from './src/routes/auth.js';
 import noteRoutes from './src/routes/notes.js';
+import chunkedUploadRoutes from './src/routes/chunkedUpload.js';
 import googleRoutes from './src/routes/google.js';
 import profileRoutes from './src/routes/profile.js';
 import commentRoutes from './src/routes/comments.js';
@@ -144,6 +145,7 @@ app.get('/api', (req, res) => {
          dbStatus: '/api/db-status',
          auth: '/api/auth',
          notes: '/api/notes',
+         upload: '/api/upload',
          profile: '/api/profile',
          google: '/api/google',
          comments: '/api/comments',
@@ -156,6 +158,7 @@ app.get('/api', (req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/upload', chunkedUploadRoutes);
 app.use('/api/google', googleRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/comments', commentRoutes);

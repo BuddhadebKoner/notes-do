@@ -1,259 +1,18 @@
-import { google } from 'googleapis';
 import multer from 'multer';
-import { Readable } from 'stream';
 import mongoose from 'mongoose';
 import { Note, User } from '../models/index.js';
 import connectDB from '../config/database.js';
-
-// Helper function to generate Google Drive URLs
-const generateDriveUrls = (driveFileId) => {
-   return {
-      viewUrl: `https://drive.google.com/file/d/${driveFileId}/preview`, // For iframe embedding
-      directViewUrl: `https://drive.google.com/file/d/${driveFileId}/view`, // For opening in new tab
-      downloadUrl: `https://drive.google.com/uc?id=${driveFileId}&export=download`, // For direct download
-      thumbnailUrl: `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w300-h400` // For thumbnail
-   };
-};
-
-// Create Google Drive service for user's personal Drive
-const getUserDriveService = (tokenData) => {
-   const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-   );
-
-   // Set credentials with both access and refresh tokens
-   auth.setCredentials({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expiry_date: tokenData.expiry_date
-   });
-
-   return google.drive({ version: 'v3', auth });
-};
-
-// Helper function to create or get a folder by name and parent
-const getOrCreateFolder = async (drive, folderName, parentId = 'root') => {
-   try {
-      // Search for existing folder
-      const folderSearchResponse = await drive.files.list({
-         q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false and '${parentId}' in parents`,
-         fields: 'files(id, name)',
-      });
-
-      if (folderSearchResponse.data.files && folderSearchResponse.data.files.length > 0) {
-         // Folder exists, return its ID
-         return folderSearchResponse.data.files[0].id;
-      }
-
-      // Folder doesn't exist, create it
-      const folderMetadata = {
-         name: folderName,
-         mimeType: 'application/vnd.google-apps.folder',
-         parents: [parentId]
-      };
-
-      const folderResponse = await drive.files.create({
-         resource: folderMetadata,
-         fields: 'id'
-      });
-
-      console.log(`Created folder '${folderName}' with ID:`, folderResponse.data.id);
-      return folderResponse.data.id;
-
-   } catch (error) {
-      console.error(`Error creating/getting folder '${folderName}':`, error);
-      // Fallback to parent folder if folder operations fail
-      return parentId;
-   }
-};
-
-// Helper function to create organized folder structure
-const getOrCreateNotesFolder = async (drive, subject = null) => {
-   try {
-      console.log('Creating organized folder structure for subject:', subject || 'None');
-
-      // Create main Notes-Do folder
-      const mainFolderId = await getOrCreateFolder(drive, 'Notes-Do', 'root');
-      console.log('Main Notes-Do folder ID:', mainFolderId);
-
-      // Create current year folder
-      const currentYear = new Date().getFullYear().toString();
-      const yearFolderId = await getOrCreateFolder(drive, currentYear, mainFolderId);
-      console.log(`Year folder (${currentYear}) ID:`, yearFolderId);
-
-      // If subject is provided, create subject subfolder
-      if (subject && subject.trim()) {
-         const sanitizedSubject = subject.trim().replace(/[<>:"/\\|?*]/g, '-'); // Remove invalid chars
-         const subjectFolderId = await getOrCreateFolder(drive, sanitizedSubject, yearFolderId);
-         console.log(`Subject folder (${sanitizedSubject}) ID:`, subjectFolderId);
-         return subjectFolderId;
-      }
-
-      console.log('Using year folder as final destination');
-      return yearFolderId;
-
-   } catch (error) {
-      console.error('Error creating Notes-Do folder structure:', error);
-      console.log('Falling back to root folder');
-      // Fallback to root if folder operations fail
-      return 'root';
-   }
-};
-
-// Upload file to USER'S Google Drive
-const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData, subject = null) => {
-   try {
-      console.log(`📤 Starting Google Drive upload for file: ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
-      const startTime = Date.now();
-
-      const drive = getUserDriveService(tokenData);
-
-      // Get or create the organized folder structure
-      const notesFolderId = await getOrCreateNotesFolder(drive, subject);
-
-      const fileMetadata = {
-         name: fileName,
-         parents: [notesFolderId] // Upload to organized folder structure
-      };
-
-      // Convert buffer to readable stream
-      const bufferStream = new Readable();
-      bufferStream.push(fileBuffer);
-      bufferStream.push(null);
-
-      const media = {
-         mimeType: mimeType,
-         body: bufferStream
-      };
-
-      const response = await drive.files.create({
-         resource: fileMetadata,
-         media: media,
-         fields: 'id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink'
-      });
-
-      // Make the file publicly viewable
-      try {
-         await drive.permissions.create({
-            fileId: response.data.id,
-            resource: {
-               role: 'reader',
-               type: 'anyone'
-            }
-         });
-      } catch (permissionError) {
-         // Silently handle permission errors
-      }
-
-      // Create alternative thumbnail URL if the API doesn't provide one
-      let thumbnailUrl = response.data.thumbnailLink;
-      if (!thumbnailUrl && response.data.id) {
-         // Alternative method: Use Google Drive's thumbnail API
-         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;
-      }
-
-      const uploadDuration = Date.now() - startTime;
-      console.log(`✅ Google Drive upload completed in ${uploadDuration}ms for file: ${fileName}`);
-
-      return {
-         success: true,
-         file: {
-            ...response.data,
-            thumbnailLink: thumbnailUrl
-         }
-      };
-
-   } catch (error) {
-      const uploadDuration = Date.now() - startTime;
-      console.error(`❌ Google Drive upload failed after ${uploadDuration}ms for file: ${fileName}`, error.message);
-
-      // Check if it's an auth error
-      if (error.code === 401 || error.code === 403) {
-         return {
-            success: false,
-            error: 'Google Drive authorization expired. Please reconnect your Google Drive.',
-            authError: true
-         };
-      }
-
-      // If it's a 500 error, the file might still have been uploaded successfully
-      // Let's try to find the file by searching for it
-      if (error.code === 500 || error.status === 500) {
+import { generateDriveUrls, uploadToUserDrive, deleteFromUserDrive } from '../utils/googleDrive.js';
 
 
-         try {
-            const drive = getUserDriveService(tokenData);
-
-            // Search for the file we just uploaded by name
-            const searchResponse = await drive.files.list({
-               q: `name='${fileName}'`,
-               fields: 'files(id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink)',
-               orderBy: 'createdTime desc',
-               pageSize: 1
-            });
-
-            if (searchResponse.data.files && searchResponse.data.files.length > 0) {
-               const file = searchResponse.data.files[0];
 
 
-               // Make the file publicly viewable
-               await drive.permissions.create({
-                  fileId: file.id,
-                  resource: {
-                     role: 'reader',
-                     type: 'anyone'
-                  }
-               });
 
-               // Create alternative thumbnail URL if not available
-               let thumbnailUrl = file.thumbnailLink;
-               if (!thumbnailUrl && file.id) {
-                  thumbnailUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w300-h400`;
-               }
 
-               return {
-                  success: true,
-                  file: {
-                     id: file.id,
-                     name: file.name,
-                     mimeType: file.mimeType,
-                     size: file.size || fileBuffer.length.toString(),
-                     webViewLink: file.webViewLink,
-                     webContentLink: file.webContentLink,
-                     thumbnailLink: thumbnailUrl
-                  },
-                  warning: 'File uploaded to Google Drive successfully! Retrieved file details after API error.'
-               };
-            }
-         } catch (searchError) {
 
-         }
 
-         // Fallback if search fails
-         return {
-            success: true,
-            file: {
-               id: 'drive_success_' + Date.now(),
-               name: fileName,
-               mimeType: mimeType,
-               size: fileBuffer.length.toString(),
-               webViewLink: 'https://drive.google.com/drive/my-drive',
-               webContentLink: 'https://drive.google.com/drive/my-drive',
-               thumbnailLink: null
-            },
-            warning: 'File uploaded to Google Drive successfully! Could not retrieve direct file link due to API limitations.'
-         };
-      }
 
-      return {
-         success: false,
-         error: error.message || 'Google Drive upload failed',
-         details: error.response?.data || error.cause
-      };
-   }
-};
+
 
 // Multer configuration for memory storage (no disk storage for Google Drive)
 const storage = multer.memoryStorage();
@@ -1207,6 +966,320 @@ export const unlikeNote = async (req, res) => {
 };
 
 
+
+// Check note processing status
+export const checkNoteStatus = async (req, res) => {
+   try {
+      const { id } = req.params;
+
+      // Validate note ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+         return res.status(400).json({
+            success: false,
+            message: 'Invalid note ID format'
+         });
+      }
+
+      // Find note (including processing notes)
+      const note = await Note.findById(id)
+         .populate({
+            path: 'uploader',
+            select: 'profile.firstName profile.lastName username'
+         })
+         .select('title status uploadDate uploader file.driveFileName');
+
+      if (!note) {
+         return res.status(404).json({
+            success: false,
+            message: 'Note not found'
+         });
+      }
+
+      // Check if user is the owner (only owner can check processing status)
+      const currentUserId = req.user?.id;
+      const isOwner = currentUserId && note.uploader._id.toString() === currentUserId;
+
+      if (!isOwner) {
+         return res.status(403).json({
+            success: false,
+            message: 'Only the note owner can check processing status'
+         });
+      }
+
+      res.json({
+         success: true,
+         note: {
+            _id: note._id,
+            title: note.title,
+            status: note.status,
+            fileName: note.file.driveFileName,
+            uploadDate: note.uploadDate,
+            isProcessing: note.status === 'processing',
+            isReady: note.status === 'approved'
+         }
+      });
+
+   } catch (error) {
+      console.error('Check note status error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to check note status',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Delete note (owner only)
+export const deleteNote = async (req, res) => {
+   try {
+      // Ensure database connection for serverless environments
+      await connectDB();
+
+      const { id } = req.params;
+      const currentUserId = req.user._id;
+
+      // Validate note ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+         return res.status(400).json({
+            success: false,
+            message: 'Invalid note ID format'
+         });
+      }
+
+      // Find the note and verify ownership
+      const note = await Note.findOne({
+         _id: id,
+         uploader: currentUserId
+      });
+
+      if (!note) {
+         return res.status(404).json({
+            success: false,
+            message: 'Note not found or you do not have permission to delete this note'
+         });
+      }
+
+      console.log('🗑️ Starting deletion process for note:', note.title);
+
+      // Step 1: Delete from Google Drive (if user has connected Google Drive)
+      let driveDeleteResult = null;
+      const { googleDriveToken } = req.body;
+
+      console.log('📋 Deletion request details:');
+      console.log('   • Note ID:', id);
+      console.log('   • Note title:', note.title);
+      console.log('   • Drive file ID:', note.file.driveFileId);
+      console.log('   • Google Drive token provided:', !!googleDriveToken);
+      console.log('   • Token length:', googleDriveToken ? googleDriveToken.length : 0);
+
+      if (googleDriveToken && note.file.driveFileId) {
+         try {
+            // Decode the Google Drive token
+            console.log('🔓 Decoding Google Drive token...');
+            const tokenData = JSON.parse(Buffer.from(googleDriveToken, 'base64').toString('utf-8'));
+            console.log('✅ Token decoded successfully');
+
+            console.log('🔄 Deleting file from Google Drive...');
+            console.log('   • Drive file ID to delete:', note.file.driveFileId);
+
+            driveDeleteResult = await deleteFromUserDrive(note.file.driveFileId, tokenData);
+
+            if (driveDeleteResult.success) {
+               console.log('✅ Google Drive deletion completed successfully');
+            } else {
+               console.warn('⚠️ Google Drive deletion failed but continuing with database cleanup:', driveDeleteResult.error);
+            }
+         } catch (tokenError) {
+            console.warn('⚠️ Failed to process Google Drive token, skipping Drive deletion:', tokenError.message);
+            driveDeleteResult = {
+               success: false,
+               error: `Invalid Google Drive token: ${tokenError.message}`,
+               skipped: true
+            };
+         }
+      } else if (!googleDriveToken) {
+         console.log('ℹ️ No Google Drive token provided, skipping Drive deletion');
+         driveDeleteResult = {
+            success: true,
+            message: 'Google Drive deletion skipped (no token provided)',
+            skipped: true
+         };
+      } else if (!note.file.driveFileId) {
+         console.log('⚠️ No drive file ID found for note, skipping Drive deletion');
+         driveDeleteResult = {
+            success: true,
+            message: 'Google Drive deletion skipped (no file ID found)',
+            skipped: true
+         };
+      }
+
+      // Step 2: Immediate cleanup (uploader only) + Background processing for user associations
+      console.log('🔄 Performing immediate cleanup...');
+
+      // Remove from uploader's notesUploaded array (immediate)
+      await User.findByIdAndUpdate(
+         currentUserId,
+         {
+            $pull: { 'activity.notesUploaded': id },
+            $inc: { 'activity.totalUploads': -1 }
+         }
+      );
+
+      // Step 3: Delete the note from database immediately (user gets instant feedback)
+      console.log('🔄 Deleting note from database...');
+      await Note.findByIdAndDelete(id);
+
+      // Step 4: Start background cleanup process for user associations (non-blocking)
+      console.log('� Starting background cleanup for user associations...');
+
+      // Fire and forget - this runs in background without blocking the response
+      setImmediate(async () => {
+         try {
+            await cleanupNoteAssociations(id, note.title);
+         } catch (bgError) {
+            console.error('❌ Background cleanup error for note', id, ':', bgError.message);
+            // Could implement retry logic or dead letter queue here
+         }
+      });
+
+      console.log('✅ Note deletion completed successfully');
+
+      console.log('✅ Note deletion completed successfully (background cleanup in progress)');
+
+      // Prepare response message
+      let message = `Note "${note.title}" has been successfully deleted from the database`;
+      if (driveDeleteResult) {
+         if (driveDeleteResult.success && !driveDeleteResult.skipped) {
+            message += ' and removed from your Google Drive';
+         } else if (driveDeleteResult.skipped) {
+            message += '. Google Drive file was not deleted (no connection token provided)';
+         } else {
+            message += '. Warning: Failed to delete from Google Drive';
+         }
+      }
+      message += '. User associations are being cleaned up in the background.';
+
+      const warnings = [];
+      if (driveDeleteResult && !driveDeleteResult.success && !driveDeleteResult.skipped) {
+         warnings.push(driveDeleteResult.error);
+      }
+
+      res.status(200).json({
+         success: true,
+         message,
+         data: {
+            deletedNote: {
+               _id: note._id,
+               title: note.title,
+               fileName: note.file.driveFileName
+            },
+            googleDriveResult: driveDeleteResult,
+            backgroundCleanup: {
+               status: 'in_progress',
+               message: 'User associations are being cleaned up in the background for optimal performance'
+            }
+         },
+         warnings: warnings.length > 0 ? warnings : undefined
+      });
+
+   } catch (error) {
+      console.error('❌ Error deleting note:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to delete note',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+   }
+};
+
+// Optimized background cleanup function for user associations
+const cleanupNoteAssociations = async (noteId, noteTitle) => {
+   const startTime = Date.now();
+   console.log(`🧹 Starting background cleanup for note: ${noteTitle} (ID: ${noteId})`);
+
+   try {
+      // Use bulk operations with batching for better performance
+      const BATCH_SIZE = 1000; // Process in batches to avoid memory issues
+      let totalFavoritesRemoved = 0;
+      let totalWishlistsUpdated = 0;
+      let totalLegacyRemoved = 0;
+
+      // 1. Clean up favorites in batches using efficient bulk operations
+      console.log('📌 Cleaning up favorites...');
+      const favoritesResult = await User.updateMany(
+         { 'activity.favoriteNotes': noteId },
+         {
+            $pull: { 'activity.favoriteNotes': noteId }
+         },
+         {
+            // Use writeConcern for better performance
+            writeConcern: { w: 1, j: false }
+         }
+      );
+      totalFavoritesRemoved = favoritesResult.modifiedCount;
+
+      // 2. Clean up wishlists in batches using efficient aggregation
+      console.log('📋 Cleaning up wishlists...');
+      const wishlistsResult = await User.updateMany(
+         { 'activity.wishlists.notes.note': noteId },
+         {
+            $pull: { 'activity.wishlists.$[].notes': { note: noteId } },
+            $set: { 'activity.wishlists.$[].updatedAt': new Date() }
+         },
+         {
+            writeConcern: { w: 1, j: false },
+            multi: true
+         }
+      );
+      totalWishlistsUpdated = wishlistsResult.modifiedCount;
+
+      // 3. Clean up legacy wishlist (single operation)
+      console.log('🗂️ Cleaning up legacy wishlists...');
+      const legacyResult = await User.updateMany(
+         { 'activity.wishlistNotes': noteId },
+         { $pull: { 'activity.wishlistNotes': noteId } },
+         { writeConcern: { w: 1, j: false } }
+      );
+      totalLegacyRemoved = legacyResult.modifiedCount;
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      console.log(`✅ Background cleanup completed for note: ${noteTitle}`);
+      console.log(`📊 Cleanup Statistics:`);
+      console.log(`   • Favorites removed: ${totalFavoritesRemoved} users`);
+      console.log(`   • Wishlists updated: ${totalWishlistsUpdated} users`);
+      console.log(`   • Legacy entries removed: ${totalLegacyRemoved} users`);
+      console.log(`   • Total duration: ${duration}ms`);
+      console.log(`   • Performance: ${Math.round((totalFavoritesRemoved + totalWishlistsUpdated + totalLegacyRemoved) / (duration / 1000))} operations/second`);
+
+      return {
+         success: true,
+         stats: {
+            favoritesRemoved: totalFavoritesRemoved,
+            wishlistsUpdated: totalWishlistsUpdated,
+            legacyRemoved: totalLegacyRemoved,
+            duration,
+            operationsPerSecond: Math.round((totalFavoritesRemoved + totalWishlistsUpdated + totalLegacyRemoved) / (duration / 1000))
+         }
+      };
+
+   } catch (error) {
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      console.error(`❌ Background cleanup failed for note: ${noteTitle} (${duration}ms)`);
+      console.error('Error details:', error.message);
+
+      // In production, you might want to:
+      // 1. Retry the operation with exponential backoff
+      // 2. Store failed operations in a dead letter queue
+      // 3. Send alerts to monitoring system
+      // 4. Create a cleanup job that can be run manually
+
+      throw error;
+   }
+};
 
 // Export the multer upload middleware
 export const uploadMiddleware = upload.single('noteFile');

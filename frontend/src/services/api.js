@@ -352,6 +352,23 @@ export const notesAPI = {
       throw error.response?.data || error.message
     }
   },
+
+  // Delete a note
+  deleteNote: async (noteId, googleDriveToken = null) => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.delete(
+        `${API_ENDPOINTS.NOTES.DELETE}/${noteId}`,
+        {
+          ...config,
+          data: googleDriveToken ? { googleDriveToken } : {},
+        }
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
 }
 
 // Generic API helper functions
@@ -608,6 +625,24 @@ export const wishlistShareAPI = {
   },
 }
 
+// Google API services
+export const googleAPI = {
+  // Get Google Drive account information
+  getAccountInfo: async googleDriveToken => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        API_ENDPOINTS.GOOGLE.ACCOUNT_INFO,
+        { googleDriveToken },
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+}
+
 export default {
   auth: authAPI,
   profile: profileAPI,
@@ -615,5 +650,6 @@ export default {
   comments: commentsAPI,
   share: shareAPI,
   wishlistShare: wishlistShareAPI,
+  google: googleAPI,
   helpers: apiHelpers,
 }

@@ -13,6 +13,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from '../../../components/ui/avatar.jsx'
+import { Link } from 'react-router-dom'
 
 const Favorites = () => {
   const [currentPage, setCurrentPage] = useState(1)
@@ -254,7 +255,7 @@ const Favorites = () => {
               collection!
             </p>
             <Button size='lg' variant='destructive' asChild>
-              <a href='/'>Browse Notes</a>
+              <Link to='/notes'>Browse Notes</Link>
             </Button>
           </CardContent>
         </Card>

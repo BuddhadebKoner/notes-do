@@ -3,7 +3,7 @@ import {
   useGetProfile,
   useGetActivityStats,
 } from '../../../lib/react-query/queriesAndMutation.js'
-import { CloudDownload, Eye, NotebookPen, Star } from 'lucide-react'
+import { CloudDownload, Eye, NotebookPen, Star, UserCog, X } from 'lucide-react'
 import {
   Card,
   CardContent,
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '../../../components/ui/card.jsx'
 import { Badge } from '../../../components/ui/badge.jsx'
+import { Link } from 'react-router-dom'
 
 const ProfileOverview = () => {
   const { data: profileData } = useGetProfile()
@@ -57,7 +58,7 @@ const ProfileOverview = () => {
   return (
     <div className='space-y-4 sm:space-y-6'>
       {/* Stats Grid */}
-      <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6'>
+      {/* <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6'>
         <StatCard
           title='Total Notes'
           value={
@@ -94,7 +95,7 @@ const ProfileOverview = () => {
           icon={<Star className='h-4 w-4 sm:h-5 sm:w-5' />}
           color='yellow'
         />
-      </div>
+      </div> */}
 
       {/* Profile Information Cards */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6'>
@@ -158,10 +159,13 @@ const ProfileOverview = () => {
 
         {/* Academic Information */}
         <Card>
-          <CardHeader className='pb-3 sm:pb-6'>
+          <CardHeader className='flex justify-between items-center pb-3 sm:pb-6'>
             <CardTitle className='text-lg sm:text-xl'>
               Academic Information
             </CardTitle>
+            <Link to='/profile/settings'>
+              <UserCog />
+            </Link>
           </CardHeader>
           <CardContent className='space-y-3 pt-0'>
             <div className='flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2'>
@@ -224,51 +228,6 @@ const ProfileOverview = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Activity Overview */}
-      <Card>
-        <CardHeader className='pb-3 sm:pb-6'>
-          <CardTitle className='text-lg sm:text-xl'>
-            Activity Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className='pt-0'>
-          <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4'>
-            <div className='text-center p-3 sm:p-4 bg-blue-50 rounded-lg border'>
-              <div className='text-lg sm:text-xl lg:text-2xl font-bold text-blue-600'>
-                {user.activity.totalFavorites || 0}
-              </div>
-              <div className='text-xs sm:text-sm text-muted-foreground'>
-                Favorite Notes
-              </div>
-            </div>
-            <div className='text-center p-3 sm:p-4 bg-green-50 rounded-lg border'>
-              <div className='text-lg sm:text-xl lg:text-2xl font-bold text-green-600'>
-                {user.activity.totalWishlist || 0}
-              </div>
-              <div className='text-xs sm:text-sm text-muted-foreground'>
-                Wishlist Items
-              </div>
-            </div>
-            <div className='text-center p-3 sm:p-4 bg-purple-50 rounded-lg border'>
-              <div className='text-lg sm:text-xl lg:text-2xl font-bold text-purple-600'>
-                {user.activity.totalFollowers || 0}
-              </div>
-              <div className='text-xs sm:text-sm text-muted-foreground'>
-                Followers
-              </div>
-            </div>
-            <div className='text-center p-3 sm:p-4 bg-indigo-50 rounded-lg border'>
-              <div className='text-lg sm:text-xl lg:text-2xl font-bold text-indigo-600'>
-                {user.activity.totalFollowing || 0}
-              </div>
-              <div className='text-xs sm:text-sm text-muted-foreground'>
-                Following
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

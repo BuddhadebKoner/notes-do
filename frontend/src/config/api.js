@@ -14,6 +14,15 @@ export const API_ENDPOINTS = {
     DOWNLOAD: '/notes',
     LIKE: '/notes',
     UNLIKE: '/notes',
+    CHECK_STATUS: '/notes',
+    DELETE: '/notes',
+  },
+  CHUNKED_UPLOAD: {
+    INIT: '/upload/init',
+    CHUNK: '/upload/chunk',
+    PROGRESS: '/upload/progress',
+    COMPLETE: '/upload/complete',
+    CANCEL: '/upload/cancel',
   },
   PROFILE: {
     GET_PROFILE: '/profile',
@@ -42,6 +51,7 @@ export const API_ENDPOINTS = {
   GOOGLE: {
     DRIVE_AUTH: '/google/google-drive-auth',
     CALLBACK: '/google/callback',
+    ACCOUNT_INFO: '/google/account-info',
   },
   COMMENTS: {
     GET_COMMENTS: '/comments',

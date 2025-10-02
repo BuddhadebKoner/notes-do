@@ -8,6 +8,7 @@ import {
   commentsAPI,
   shareAPI,
   wishlistShareAPI,
+  googleAPI,
 } from '../../services/api.js'
 import { profileAPI } from '../../services/api.js'
 
@@ -673,6 +674,78 @@ export const useUnlikeNote = () => {
     },
     onError: error => {
       console.error('Failed to unlike note:', error)
+    },
+  })
+}
+
+// Mutation to delete a note
+export const useDeleteNote = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.DELETE_NOTE,
+    mutationFn: ({ noteId, googleDriveToken }) =>
+      notesAPI.deleteNote(noteId, googleDriveToken),
+    onSuccess: (data, variables) => {
+      const { noteId } = variables
+
+      // Remove the note from all relevant caches
+      queryClient.removeQueries({ queryKey: [...QUERY_KEYS.GET_NOTE, noteId] })
+
+      // Remove from uploaded notes cache
+      queryClient.setQueriesData(
+        { queryKey: [QUERY_KEYS.GET_UPLOADED_NOTES] },
+        old => {
+          if (!old?.success || !old?.data?.notes) return old
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              notes: old.data.notes.filter(note => note._id !== noteId),
+              pagination: {
+                ...old.data.pagination,
+                totalNotes: Math.max(0, old.data.pagination.totalNotes - 1),
+              },
+            },
+          }
+        }
+      )
+
+      // Remove from notes feed cache
+      queryClient.setQueriesData(
+        { queryKey: [QUERY_KEYS.GET_NOTES_FEED] },
+        old => {
+          if (!old?.success || !old?.data?.notes) return old
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              notes: old.data.notes.filter(note => note._id !== noteId),
+              pagination: {
+                ...old.data.pagination,
+                totalNotes: Math.max(0, old.data.pagination.totalNotes - 1),
+              },
+            },
+          }
+        }
+      )
+
+      // Invalidate related queries to ensure consistency
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_UPLOADED_NOTES],
+      })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.GET_NOTES_FEED] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.GET_PROFILE] })
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_ACTIVITY_STATS],
+      })
+    },
+    onError: error => {
+      console.error('Delete note error:', error)
+      // Invalidate queries to ensure UI consistency even on error
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_UPLOADED_NOTES],
+      })
     },
   })
 }
@@ -1496,5 +1569,38 @@ export const useGetWishlistShareAnalytics = (wishlistId, enabled = true) => {
     enabled: enabled && !!wishlistId,
     refetchInterval: 30000, // Refetch every 30 seconds for real-time analytics
     refetchOnWindowFocus: true,
+  })
+}
+
+// ========== GOOGLE DRIVE HOOKS ==========
+
+// Hook to get Google Drive account information
+export const useGetGoogleDriveAccountInfo = (enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GOOGLE_DRIVE_ACCOUNT_INFO,
+    queryFn: async () => {
+      // Get token from localStorage
+      const googleDriveToken = localStorage.getItem('googleDriveToken')
+      if (!googleDriveToken) {
+        throw new Error('No Google Drive token found')
+      }
+      return googleAPI.getAccountInfo(googleDriveToken)
+    },
+    enabled: enabled && !!localStorage.getItem('googleDriveToken'),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    retry: (failureCount, error) => {
+      // Don't retry if token is invalid or expired
+      if (error?.needsReauth) {
+        return false
+      }
+      return failureCount < 2
+    },
+    onError: error => {
+      // If token is invalid, remove it from localStorage
+      if (error?.needsReauth) {
+        localStorage.removeItem('googleDriveToken')
+      }
+    },
   })
 }

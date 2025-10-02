@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { requireAuth, requireUserInDB, optionalAuth } from '../middleware/auth.js';
-import { uploadNote, getNotesFeed, getNoteById, downloadNote, likeNote, unlikeNote } from '../controllers/notes.js';
+import { uploadNote, getNotesFeed, getNoteById, downloadNote, likeNote, unlikeNote, checkNoteStatus, deleteNote } from '../controllers/notes.js';
 
 const router = express.Router();
 
@@ -44,6 +44,12 @@ router.get('/:id/download', downloadNote);
 // Like/Unlike note (requires authentication)
 router.post('/:id/like', requireAuth, requireUserInDB, likeNote);
 router.delete('/:id/like', requireAuth, requireUserInDB, unlikeNote);
+
+// Check note processing status (owner only)
+router.get('/:id/status', requireAuth, requireUserInDB, checkNoteStatus);
+
+// Delete note (owner only)
+router.delete('/:id', requireAuth, requireUserInDB, deleteNote);
 
 // Error handling middleware for multer
 router.use((error, req, res, next) => {
