@@ -1,5 +1,7 @@
 import express from 'express';
 import { google } from 'googleapis';
+import { getGoogleDriveAccountInfo } from '../utils/googleDriveAccount.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -93,6 +95,55 @@ router.get('/callback', async (req, res) => {
    } catch (error) {
       console.error('Google OAuth callback error:', error);
       res.redirect(`${frontendUrl}/auth/google/callback?error=${encodeURIComponent(error.message)}`);
+   }
+});
+
+// Get Google Drive account information (protected route)
+router.post('/account-info', requireAuth, async (req, res) => {
+   try {
+      const { googleDriveToken } = req.body;
+
+      if (!googleDriveToken) {
+         return res.status(400).json({
+            success: false,
+            message: 'Google Drive token is required'
+         });
+      }
+
+      // Decode the token from base64
+      let tokenData;
+      try {
+         tokenData = JSON.parse(Buffer.from(googleDriveToken, 'base64').toString('utf-8'));
+      } catch (decodeError) {
+         return res.status(400).json({
+            success: false,
+            message: 'Invalid Google Drive token format'
+         });
+      }
+
+      const accountInfo = await getGoogleDriveAccountInfo(tokenData);
+
+      if (!accountInfo.success) {
+         return res.status(400).json({
+            success: false,
+            message: accountInfo.error,
+            needsReauth: accountInfo.needsReauth || false
+         });
+      }
+
+      res.json({
+         success: true,
+         accountInfo: accountInfo.accountInfo,
+         message: 'Google Drive account information retrieved successfully'
+      });
+
+   } catch (error) {
+      console.error('Google Drive account info error:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to retrieve Google Drive account information',
+         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
    }
 });
 

@@ -17,6 +17,7 @@ export const QUERY_KEYS = {
   GET_NOTE: ['notes', 'detail'],
   LIKE_NOTE: ['notes', 'like'],
   UNLIKE_NOTE: ['notes', 'unlike'],
+  DELETE_NOTE: ['notes', 'delete'],
 
   // Profile related queries
   GET_PROFILE: ['profile', 'details'],
@@ -68,35 +69,37 @@ export const QUERY_KEYS = {
   // Comments related queries
   GET_COMMENTS: (noteId, page, limit) => [
     'comments',
-    'list',
+    'note',
     noteId,
     { page, limit },
   ],
   ADD_COMMENT: ['comments', 'add'],
-  LIKE_COMMENT: ['comments', 'like'],
-  UNLIKE_COMMENT: ['comments', 'unlike'],
-  ADD_REPLY: ['comments', 'reply'],
+  TOGGLE_COMMENT_LIKE: ['comments', 'toggle-like'],
+  ADD_REPLY: ['comments', 'add-reply'],
 
-  // Share related queries
+  // Sharing related queries
   CREATE_SHARE_LINK: ['share', 'create'],
   GET_SHARE_INFO: noteId => ['share', 'info', noteId],
   DISABLE_SHARE_LINK: ['share', 'disable'],
   ACCESS_SHARED_NOTE: (noteId, token) => ['share', 'access', noteId, token],
   GET_SHARE_ANALYTICS: noteId => ['share', 'analytics', noteId],
 
-  // Wishlist Share related queries
-  CREATE_WISHLIST_SHARE_LINK: ['wishlistShare', 'create'],
-  GET_WISHLIST_SHARE_INFO: wishlistId => ['wishlistShare', 'info', wishlistId],
-  DISABLE_WISHLIST_SHARE_LINK: ['wishlistShare', 'disable'],
+  // Wishlist share related queries
+  CREATE_WISHLIST_SHARE_LINK: ['wishlist-share', 'create'],
+  GET_WISHLIST_SHARE_INFO: wishlistId => ['wishlist-share', 'info', wishlistId],
+  DISABLE_WISHLIST_SHARE_LINK: ['wishlist-share', 'disable'],
   ACCESS_SHARED_WISHLIST: (wishlistId, token) => [
-    'wishlistShare',
+    'wishlist-share',
     'access',
     wishlistId,
     token,
   ],
   GET_WISHLIST_SHARE_ANALYTICS: wishlistId => [
-    'wishlistShare',
+    'wishlist-share',
     'analytics',
     wishlistId,
   ],
+
+  // Google Drive related queries
+  GOOGLE_DRIVE_ACCOUNT_INFO: ['google-drive', 'account-info'],
 }

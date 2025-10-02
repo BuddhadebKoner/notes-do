@@ -379,7 +379,7 @@ const noteSchema = new mongoose.Schema({
    // Status & Moderation
    status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected', 'archived', 'reported'],
+      enum: ['pending', 'processing', 'approved', 'rejected', 'archived', 'reported'],
       default: 'pending',
       index: true
    },
