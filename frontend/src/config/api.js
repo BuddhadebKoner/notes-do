@@ -17,13 +17,6 @@ export const API_ENDPOINTS = {
     CHECK_STATUS: '/notes',
     DELETE: '/notes',
   },
-  CHUNKED_UPLOAD: {
-    INIT: '/upload/init',
-    CHUNK: '/upload/chunk',
-    PROGRESS: '/upload/progress',
-    COMPLETE: '/upload/complete',
-    CANCEL: '/upload/cancel',
-  },
   PROFILE: {
     GET_PROFILE: '/profile',
     UPDATE_PROFILE: '/profile',
@@ -146,7 +139,7 @@ api.interceptors.response.use(
       // Try to get a fresh token and retry the request
       if (getTokenFunction) {
         try {
-          console.log('Token expired, attempting to refresh...')
+
           const freshToken = await getTokenFunction()
           if (freshToken) {
             originalRequest.headers['Authorization'] = `Bearer ${freshToken}`
@@ -159,7 +152,7 @@ api.interceptors.response.use(
       }
 
       // If refresh fails, redirect to login
-      console.log('Authentication failed - user needs to login again')
+
       // You might want to trigger a logout or redirect here
     }
 

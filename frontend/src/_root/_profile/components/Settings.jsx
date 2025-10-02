@@ -148,7 +148,7 @@ const Settings = () => {
           form.reset(values)
 
           // You can add a toast notification here
-          console.log('Profile updated successfully:', data)
+
 
           // Optional: Show success message in UI
           // toast.success('Profile updated successfully!')

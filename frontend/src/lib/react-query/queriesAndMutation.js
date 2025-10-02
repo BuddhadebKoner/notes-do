@@ -46,7 +46,7 @@ export const useCreateUser = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.CREATE_USER,
     mutationFn: async userData => {
-      console.log('🚀 Creating user profile with data:', userData)
+
       return await authAPI.createUser(userData)
     },
     onSuccess: data => {
@@ -69,7 +69,7 @@ export const useCreateUser = () => {
           timestamp: new Date().toISOString(),
         })
 
-        console.log('User created successfully:', data.message)
+
       }
     },
     onError: error => {
@@ -91,7 +91,7 @@ export const useUploadNote = onProgress => {
         queryClient.invalidateQueries({ queryKey: ['notes', 'feed'] })
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GET_PROFILE })
 
-        console.log('Note uploaded successfully:', data.message)
+
       }
     },
     onError: error => {
@@ -138,41 +138,41 @@ export const useUpdateNoteDetails = () => {
               notes: old.data.notes.map(note =>
                 note._id === noteId
                   ? {
-                      ...note,
-                      // Only update fields that are actually provided
-                      ...(data.title && { title: data.title }),
-                      ...(data.description && {
-                        description: data.description,
+                    ...note,
+                    // Only update fields that are actually provided
+                    ...(data.title && { title: data.title }),
+                    ...(data.description && {
+                      description: data.description,
+                    }),
+                    subject: {
+                      ...note.subject,
+                      ...(data.subject && { name: data.subject }),
+                      ...(data.category && { category: data.category }),
+                      ...(data.difficulty && { difficulty: data.difficulty }),
+                    },
+                    academic: {
+                      ...note.academic,
+                      ...(data.university && { university: data.university }),
+                      ...(data.department && { department: data.department }),
+                      ...(data.semester && {
+                        semester: parseInt(data.semester),
                       }),
-                      subject: {
-                        ...note.subject,
-                        ...(data.subject && { name: data.subject }),
-                        ...(data.category && { category: data.category }),
-                        ...(data.difficulty && { difficulty: data.difficulty }),
-                      },
-                      academic: {
-                        ...note.academic,
-                        ...(data.university && { university: data.university }),
-                        ...(data.department && { department: data.department }),
-                        ...(data.semester && {
-                          semester: parseInt(data.semester),
-                        }),
-                        ...(data.graduationYear && {
-                          graduationYear: parseInt(data.graduationYear),
-                        }),
-                        ...(data.degree && { degree: data.degree }),
-                      },
-                      ...(data.visibility && { visibility: data.visibility }),
-                      ...(data.tags && {
-                        tags:
-                          typeof data.tags === 'string'
-                            ? data.tags
-                                .split(',')
-                                .map(tag => tag.trim())
-                                .filter(Boolean)
-                            : data.tags,
+                      ...(data.graduationYear && {
+                        graduationYear: parseInt(data.graduationYear),
                       }),
-                    }
+                      ...(data.degree && { degree: data.degree }),
+                    },
+                    ...(data.visibility && { visibility: data.visibility }),
+                    ...(data.tags && {
+                      tags:
+                        typeof data.tags === 'string'
+                          ? data.tags
+                            .split(',')
+                            .map(tag => tag.trim())
+                            .filter(Boolean)
+                          : data.tags,
+                    }),
+                  }
                   : note
               ),
             },
@@ -216,7 +216,7 @@ export const useUpdateNoteDetails = () => {
           }
         )
 
-        console.log('Note updated successfully:', data.message)
+
       }
     },
     onError: (error, variables, context) => {
@@ -259,7 +259,7 @@ export const useGetProfile = (options = {}) => {
   return useQuery({
     queryKey: QUERY_KEYS.GET_PROFILE,
     queryFn: async () => {
-      console.log('🔄 Fetching user profile...')
+
       // Simply try to get the profile, let errors bubble up for manual handling
       return await profileAPI.getProfile()
     },
@@ -569,13 +569,13 @@ export const useLikeNote = () => {
         notes.map(note =>
           note._id === noteId
             ? {
-                ...note,
-                stats: {
-                  ...note.stats,
-                  likes: data.data.likesCount,
-                  isLiked: true,
-                },
-              }
+              ...note,
+              stats: {
+                ...note.stats,
+                likes: data.data.likesCount,
+                isLiked: true,
+              },
+            }
             : note
         )
 
@@ -638,13 +638,13 @@ export const useUnlikeNote = () => {
         notes.map(note =>
           note._id === noteId
             ? {
-                ...note,
-                stats: {
-                  ...note.stats,
-                  likes: data.data.likesCount,
-                  isLiked: false,
-                },
-              }
+              ...note,
+              stats: {
+                ...note.stats,
+                likes: data.data.likesCount,
+                isLiked: false,
+              },
+            }
             : note
         )
 
@@ -1021,7 +1021,7 @@ export const useUpdateProfile = () => {
         queryClient.setQueryData(QUERY_KEYS.GET_PROFILE, data)
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GET_PROFILE })
 
-        console.log('Profile updated successfully:', data.message)
+
       }
     },
     onError: error => {
@@ -1104,7 +1104,7 @@ export const useFollowUser = () => {
           queryKey: QUERY_KEYS.GET_PROFILE,
         })
 
-        console.log('User followed successfully:', data.message)
+
       }
     },
     onError: (error, username, context) => {
@@ -1196,7 +1196,7 @@ export const useUnfollowUser = () => {
           queryKey: QUERY_KEYS.GET_PROFILE,
         })
 
-        console.log('User unfollowed successfully:', data.message)
+
       }
     },
     onError: (error, username, context) => {
@@ -1394,7 +1394,7 @@ export const useCreateShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_SHARE_INFO(variables.noteId),
         })
-        console.log('Share link created successfully:', data.message)
+
       }
     },
     onError: error => {
@@ -1427,7 +1427,7 @@ export const useDisableShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_SHARE_INFO(noteId),
         })
-        console.log('Share link disabled successfully:', data.message)
+
       }
     },
     onError: error => {
@@ -1490,7 +1490,7 @@ export const useCreateWishlistShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(variables.wishlistId),
         })
-        console.log('Wishlist share link created successfully:', data.message)
+
       }
     },
     onError: error => {
@@ -1523,7 +1523,7 @@ export const useDisableWishlistShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(wishlistId),
         })
-        console.log('Wishlist share link disabled successfully:', data.message)
+
       }
     },
     onError: error => {

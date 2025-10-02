@@ -15,7 +15,6 @@ import connectDB, { getDBStatus } from './src/config/database.js';
 // Import routes
 import authRoutes from './src/routes/auth.js';
 import noteRoutes from './src/routes/notes.js';
-import chunkedUploadRoutes from './src/routes/chunkedUpload.js';
 import googleRoutes from './src/routes/google.js';
 import profileRoutes from './src/routes/profile.js';
 import commentRoutes from './src/routes/comments.js';
@@ -158,7 +157,6 @@ app.get('/api', (req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/notes', noteRoutes);
-app.use('/api/upload', chunkedUploadRoutes);
 app.use('/api/google', googleRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/comments', commentRoutes);
@@ -215,17 +213,11 @@ const startServer = async () => {
    try {
       // Connect to database
       await connectDB();
-      console.log('🎉 Database initialization completed');
+
 
       // Start listening
       const server = app.listen(PORT, () => {
-         console.log(`
-🚀 Server is running!
-🌍 Environment: ${process.env.NODE_ENV}
-🔗 URL: http://localhost:${PORT}
-📚 API: http://localhost:${PORT}/api
-❤️  Health: http://localhost:${PORT}/health
-         `);
+         // Server running successfully
       });
 
       // Set server timeout to 5 minutes for large file uploads
