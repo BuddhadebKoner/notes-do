@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select.jsx'
+import { SearchableSelect } from '../ui/searchable-select.jsx'
 import {
   Form,
   FormControl,
@@ -405,23 +406,19 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>University</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select university (optional)' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {WEST_BENGAL_UNIVERSITIES.map(university => (
-                            <SelectItem key={university} value={university}>
-                              {university}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={WEST_BENGAL_UNIVERSITIES.map(university => ({
+                            label: university,
+                            value: university,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select university (optional)'
+                          searchPlaceholder='Search universities...'
+                          emptyText='No university found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -467,26 +464,16 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Department</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select department (optional)' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {getDepartmentOptions().map(department => (
-                            <SelectItem
-                              key={department.value}
-                              value={department.value}
-                            >
-                              {department.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={getDepartmentOptions()}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select department (optional)'
+                          searchPlaceholder='Search departments...'
+                          emptyText='No department found.'
+                        />
+                      </FormControl>
                       <FormDescription>
                         Optional field to help categorize your notes
                       </FormDescription>
@@ -532,23 +519,19 @@ const EditNoteDialog = ({ isOpen, onClose, note }) => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Graduation Year</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select graduation year (optional)' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {GRADUATION_YEARS.map(year => (
-                            <SelectItem key={year.value} value={year.value}>
-                              {year.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={GRADUATION_YEARS.map(year => ({
+                            label: year.label,
+                            value: year.value,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select graduation year (optional)'
+                          searchPlaceholder='Search years...'
+                          emptyText='No year found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
