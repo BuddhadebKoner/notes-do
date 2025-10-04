@@ -23,8 +23,6 @@ const Activity = () => {
   const { data: followersData, isLoading: followersLoading } = useGetFollowers()
   const { data: followingData, isLoading: followingLoading } = useGetFollowing()
 
-
-
   if (statsLoading) {
     return (
       <div className='bg-white rounded-lg shadow-lg p-6'>

@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select.jsx'
+import { SearchableSelect } from '../../../components/ui/searchable-select.jsx'
 import {
   WEST_BENGAL_UNIVERSITIES,
   WEST_BENGAL_CITIES,
@@ -148,7 +149,6 @@ const Settings = () => {
           form.reset(values)
 
           // You can add a toast notification here
-
 
           // Optional: Show success message in UI
           // toast.success('Profile updated successfully!')
@@ -443,23 +443,19 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>University</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select your university' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className='max-h-60'>
-                          {WEST_BENGAL_UNIVERSITIES.map(university => (
-                            <SelectItem key={university} value={university}>
-                              {university}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={WEST_BENGAL_UNIVERSITIES.map(university => ({
+                            label: university,
+                            value: university,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select your university'
+                          searchPlaceholder='Search universities...'
+                          emptyText='No university found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -471,23 +467,19 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Department</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select your department' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className='max-h-60'>
-                          {ALL_DEPARTMENTS.map(department => (
-                            <SelectItem key={department} value={department}>
-                              {department}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={ALL_DEPARTMENTS.map(department => ({
+                            label: department,
+                            value: department,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select your department'
+                          searchPlaceholder='Search departments...'
+                          emptyText='No department found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -519,23 +511,19 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Graduation Year</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select graduation year' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className='max-h-60'>
-                          {GRADUATION_YEARS.map(year => (
-                            <SelectItem key={year.value} value={year.value}>
-                              {year.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={GRADUATION_YEARS.map(year => ({
+                            label: year.label,
+                            value: year.value,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select graduation year'
+                          searchPlaceholder='Search years...'
+                          emptyText='No year found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -615,23 +603,19 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>City</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select your city' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className='max-h-60'>
-                          {WEST_BENGAL_CITIES.map(city => (
-                            <SelectItem key={city} value={city}>
-                              {city}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={WEST_BENGAL_CITIES.map(city => ({
+                            label: city,
+                            value: city,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select your city'
+                          searchPlaceholder='Search cities...'
+                          emptyText='No city found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -643,27 +627,20 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>State/Province</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select your state' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className='max-h-60'>
-                          {INDIAN_STATES.map(state => (
-                            <SelectItem
-                              key={state.value}
-                              value={state.value}
-                              disabled={!state.enabled}
-                            >
-                              {state.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={INDIAN_STATES.map(state => ({
+                            label: state.label,
+                            value: state.value,
+                            disabled: !state.enabled,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select your state'
+                          searchPlaceholder='Search states...'
+                          emptyText='No state found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -675,27 +652,20 @@ const Settings = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Country</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select your country' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className='max-h-60'>
-                          {COUNTRIES.map(country => (
-                            <SelectItem
-                              key={country.value}
-                              value={country.value}
-                              disabled={!country.enabled}
-                            >
-                              {country.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <SearchableSelect
+                          options={COUNTRIES.map(country => ({
+                            label: country.label,
+                            value: country.value,
+                            disabled: !country.enabled,
+                          }))}
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                          placeholder='Select your country'
+                          searchPlaceholder='Search countries...'
+                          emptyText='No country found.'
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

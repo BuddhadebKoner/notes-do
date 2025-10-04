@@ -63,8 +63,7 @@ const noteSchema = new mongoose.Schema({
       type: String,
       required: true,
       trim: true,
-      maxlength: 200,
-      index: true
+      maxlength: 200
    },
    description: {
       type: String,
@@ -85,7 +84,6 @@ const noteSchema = new mongoose.Schema({
          required: true,
          trim: true,
          maxlength: 100,
-         index: true,
          default: 'ALL' // 'ALL' means academic independent
       },
       department: {
@@ -93,7 +91,6 @@ const noteSchema = new mongoose.Schema({
          required: true,
          trim: true,
          maxlength: 100,
-         index: true,
          default: 'ALL' // 'ALL' means academic independent
       },
       course: {
@@ -123,7 +120,6 @@ const noteSchema = new mongoose.Schema({
          required: true,
          min: 0, // 0 means all semesters
          max: 12,
-         index: true,
          default: 0
       },
       academicYear: {
@@ -146,8 +142,7 @@ const noteSchema = new mongoose.Schema({
          type: String,
          required: true,
          trim: true,
-         maxlength: 100,
-         index: true
+         maxlength: 100
       },
       category: {
          type: String,
@@ -185,8 +180,7 @@ const noteSchema = new mongoose.Schema({
       driveFileId: {
          type: String,
          required: true,
-         unique: true,
-         index: true
+         unique: true
       },
       driveFileName: {
          type: String,
@@ -454,8 +448,7 @@ const noteSchema = new mongoose.Schema({
       shareToken: {
          type: String,
          unique: true,
-         sparse: true, // Allows null values while maintaining uniqueness
-         index: true
+         sparse: true // Allows null values while maintaining uniqueness
       },
       shareTokenExpiry: {
          type: Date
@@ -555,17 +548,15 @@ const noteSchema = new mongoose.Schema({
    toObject: { virtuals: true }
 });
 
-// Compound indexes for better performance
+// Compound indexes for better performance (unique fields already have indexes)
 noteSchema.index({ 'academic.university': 1, 'academic.department': 1, 'academic.semester': 1 });
 noteSchema.index({ 'subject.name': 1, 'subject.category': 1 });
 noteSchema.index({ status: 1, visibility: 1, createdAt: -1 });
 noteSchema.index({ uploader: 1, createdAt: -1 });
-noteSchema.index({ 'file.driveFileId': 1 }, { unique: true });
 noteSchema.index({ 'social.views': -1, 'social.downloads': -1 });
 noteSchema.index({ 'social.rating.averageRating': -1 });
 noteSchema.index({ tags: 1 });
 noteSchema.index({ 'content.keywords': 1 });
-noteSchema.index({ 'sharing.shareToken': 1 });
 noteSchema.index({ 'sharing.isShareEnabled': 1, 'sharing.shareTokenExpiry': 1 });
 
 // Text indexes for search functionality

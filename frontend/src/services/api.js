@@ -641,6 +641,21 @@ export const googleAPI = {
       throw error.response?.data || error.message
     }
   },
+
+  // Get Google Drive folder structure
+  getFolderStructure: async googleDriveToken => {
+    try {
+      const config = await getAuthConfig()
+      const response = await api.post(
+        API_ENDPOINTS.GOOGLE.FOLDER_STRUCTURE,
+        { googleDriveToken },
+        config
+      )
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
 }
 
 export default {

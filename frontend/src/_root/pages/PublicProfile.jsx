@@ -71,12 +71,12 @@ const PublicProfile = () => {
   } = useFollowUserLogic(
     isClerkLoaded && userData
       ? {
-        id: userData.id,
-        username: userData.username,
-        name: userData.profile?.fullName,
-        relationship: userData.relationship,
-        privacy: userData.privacy,
-      }
+          id: userData.id,
+          username: userData.username,
+          name: userData.profile?.fullName,
+          relationship: userData.relationship,
+          privacy: userData.privacy,
+        }
       : null
   ) // Handle follow action with confirmation
   const handleFollow = async () => {
@@ -105,7 +105,6 @@ const PublicProfile = () => {
   // Handle message action (placeholder)
   const handleMessage = () => {
     // TODO: Implement messaging functionality
-
   }
 
   // Social link icons

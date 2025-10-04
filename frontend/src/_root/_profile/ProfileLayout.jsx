@@ -30,6 +30,7 @@ import {
   Bookmark,
   CircleUser,
   FileText,
+  HardDriveIcon,
   Heart,
   Menu,
   Settings as SettingsIcon,
@@ -161,6 +162,12 @@ const ProfileLayout = () => {
       label: 'Activity',
       path: '/profile/activity',
       icon: <BarChart2 size={18} />,
+    },
+    {
+      id: 'drive',
+      label: 'Drive',
+      path: '/profile/drive',
+      icon: <HardDriveIcon size={18} />,
     },
     {
       id: 'settings',

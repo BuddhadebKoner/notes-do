@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
     DRIVE_AUTH: '/google/google-drive-auth',
     CALLBACK: '/google/callback',
     ACCOUNT_INFO: '/google/account-info',
+    FOLDER_STRUCTURE: '/google/folder-structure',
   },
   COMMENTS: {
     GET_COMMENTS: '/comments',
@@ -139,7 +140,6 @@ api.interceptors.response.use(
       // Try to get a fresh token and retry the request
       if (getTokenFunction) {
         try {
-
           const freshToken = await getTokenFunction()
           if (freshToken) {
             originalRequest.headers['Authorization'] = `Bearer ${freshToken}`

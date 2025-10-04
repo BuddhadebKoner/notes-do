@@ -16,8 +16,6 @@ export const useApiAuth = () => {
 
           // Register the token refresh function with the API client
           setTokenRefreshFunction(getToken)
-
-
         } catch (error) {
           console.error('Error setting auth token:', error)
           setAuthToken(null)

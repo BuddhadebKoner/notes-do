@@ -102,4 +102,5 @@ export const QUERY_KEYS = {
 
   // Google Drive related queries
   GOOGLE_DRIVE_ACCOUNT_INFO: ['google-drive', 'account-info'],
+  GOOGLE_DRIVE_FOLDER_STRUCTURE: ['google-drive', 'folder-structure'],
 }

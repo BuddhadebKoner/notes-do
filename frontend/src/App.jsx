@@ -19,6 +19,7 @@ import NoteDetails from './_root/pages/NoteDetails'
 import PublicProfile from './_root/pages/PublicProfile'
 import SharePage from './pages/SharePage'
 import SharedWishlistPage from './pages/SharedWishlistPage'
+import Drive from './_root/_profile/components/Drive'
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
               <Route path='wishlist' element={<Wishlist />} />
               <Route path='activity' element={<Activity />} />
               <Route path='settings' element={<Settings />} />
+              <Route path='drive' element={<Drive />} />
             </Route>
             <Route path='note/:id' element={<NoteDetails />} />
             <Route path='user/:username' element={<PublicProfile />} />

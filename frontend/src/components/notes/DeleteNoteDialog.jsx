@@ -5,7 +5,7 @@ import { Button } from '../ui/button.jsx'
 import { ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 
-const DeleteNoteDialog = ({ isOpen, onClose, note, onSuccess = () => { } }) => {
+const DeleteNoteDialog = ({ isOpen, onClose, note, onSuccess = () => {} }) => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [googleDriveToken, setGoogleDriveToken] = useState(null)
   const { mutate: deleteNote } = useDeleteNote()
@@ -15,7 +15,6 @@ const DeleteNoteDialog = ({ isOpen, onClose, note, onSuccess = () => { } }) => {
     if (isOpen) {
       const token = localStorage.getItem('googleDriveToken')
       setGoogleDriveToken(token)
-
     }
   }, [isOpen])
 

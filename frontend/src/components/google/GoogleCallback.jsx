@@ -14,8 +14,6 @@ const GoogleCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-
-
         // Get the authorization code from URL
         const urlParams = new URLSearchParams(window.location.search)
         const code = urlParams.get('code')
@@ -56,7 +54,6 @@ const GoogleCallback = () => {
             token = await getToken()
             if (token) break
           } catch (tokenError) {
-
             retries--
             if (retries > 0) {
               await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1s before retry
@@ -76,7 +73,6 @@ const GoogleCallback = () => {
         // Send code to backend to exchange for tokens
         const apiUrl = `${API_ENDPOINTS.BASE_URL}${API_ENDPOINTS.GOOGLE.CALLBACK}`
 
-
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -85,8 +81,6 @@ const GoogleCallback = () => {
           },
           body: JSON.stringify({ code }),
         })
-
-
 
         if (!response.ok) {
           const errorText = await response.text()

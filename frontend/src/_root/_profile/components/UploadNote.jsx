@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select.jsx'
+import { SearchableSelect } from '../../../components/ui/searchable-select.jsx'
 import {
   Card,
   CardContent,
@@ -228,9 +229,7 @@ const UploadNote = () => {
       const formDataToSend = {
         ...values,
         degreeType: selectedDegreeType,
-        tags: Array.isArray(values.tags)
-          ? values.tags.join(', ')
-          : values.tags,
+        tags: Array.isArray(values.tags) ? values.tags.join(', ') : values.tags,
       }
 
       // Add all form fields except file
@@ -407,11 +406,12 @@ const UploadNote = () => {
                                   onChange(file) // Update form state
                                 }
                               }}
-                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${!driveStatus.canUpload
-                                ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
-                                : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-                                }`}
-                            // Don't spread field props for file inputs
+                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
+                                !driveStatus.canUpload
+                                  ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
+                                  : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
+                              }`}
+                              // Don't spread field props for file inputs
                             />
                             {value && (
                               <div className='space-y-1'>
@@ -423,7 +423,8 @@ const UploadNote = () => {
                                 {value.size > 50 * 1024 * 1024 && (
                                   <p className='text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1'>
                                     <Upload className='w-3 h-3' />
-                                    Large file detected - may take longer to upload
+                                    Large file detected - may take longer to
+                                    upload
                                   </p>
                                 )}
                               </div>
@@ -676,31 +677,24 @@ const UploadNote = () => {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>University</FormLabel>
-                              <Select
-                                onValueChange={value =>
-                                  field.onChange(value === 'all' ? '' : value)
-                                }
-                                value={field.value || 'all'}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder='Any University' />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value='all'>
-                                    Any University
-                                  </SelectItem>
-                                  {WEST_BENGAL_UNIVERSITIES.map(university => (
-                                    <SelectItem
-                                      key={university}
-                                      value={university}
-                                    >
-                                      {university}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <FormControl>
+                                <SearchableSelect
+                                  options={[
+                                    { label: 'Any University', value: '' },
+                                    ...WEST_BENGAL_UNIVERSITIES.map(
+                                      university => ({
+                                        label: university,
+                                        value: university,
+                                      })
+                                    ),
+                                  ]}
+                                  value={field.value || ''}
+                                  onValueChange={field.onChange}
+                                  placeholder='Any University'
+                                  searchPlaceholder='Search universities...'
+                                  emptyText='No university found.'
+                                />
+                              </FormControl>
                               <FormDescription>
                                 Leave empty for all universities
                               </FormDescription>
@@ -751,31 +745,19 @@ const UploadNote = () => {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Department</FormLabel>
-                              <Select
-                                onValueChange={value =>
-                                  field.onChange(value === 'all' ? '' : value)
-                                }
-                                value={field.value || 'all'}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder='Any Department' />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value='all'>
-                                    Any Department
-                                  </SelectItem>
-                                  {getDepartmentOptions().map(department => (
-                                    <SelectItem
-                                      key={department.value}
-                                      value={department.value}
-                                    >
-                                      {department.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <FormControl>
+                                <SearchableSelect
+                                  options={[
+                                    { label: 'Any Department', value: '' },
+                                    ...getDepartmentOptions(),
+                                  ]}
+                                  value={field.value || ''}
+                                  onValueChange={field.onChange}
+                                  placeholder='Any Department'
+                                  searchPlaceholder='Search departments...'
+                                  emptyText='No department found.'
+                                />
+                              </FormControl>
                               <FormDescription>
                                 Leave empty for all departments
                               </FormDescription>
@@ -994,7 +976,7 @@ const UploadNote = () => {
                       {/* View PDF Button */}
                       {uploadResult.file?.webViewLink &&
                         uploadResult.file.webViewLink !==
-                        'https://drive.google.com/drive/my-drive' && (
+                          'https://drive.google.com/drive/my-drive' && (
                           <div className='mt-4'>
                             <Button
                               asChild

@@ -3,16 +3,7 @@ import mongoose from 'mongoose';
 import { Note, User } from '../models/index.js';
 import connectDB from '../config/database.js';
 import { generateDriveUrls, uploadToUserDrive, deleteFromUserDrive } from '../utils/googleDrive.js';
-
-
-
-
-
-
-
-
-
-
+import uploadQueue from '../utils/uploadQueue.js';
 
 // Multer configuration for memory storage (no disk storage for Google Drive)
 const storage = multer.memoryStorage();
@@ -107,17 +98,41 @@ export const uploadNote = async (req, res) => {
 
       if (tokenData) {
          try {
-            driveResult = await uploadToUserDrive(
-               req.file.buffer,
-               fileName,
-               req.file.mimetype,
-               tokenData,
-               subject // Pass subject for folder organization
-            );
+            // Use upload queue for large files to prevent server overload
+            const fileSize = req.file.buffer.length;
+            const fileSizeMB = (fileSize / 1024 / 1024).toFixed(2);
+            const useQueue = fileSize > 20 * 1024 * 1024; // Queue files >20MB
+
+            if (useQueue) {
+               // Add to queue and wait for processing
+               driveResult = await uploadQueue.addToQueue(
+                  async () => {
+                     return await uploadToUserDrive(
+                        req.file.buffer,
+                        fileName,
+                        req.file.mimetype,
+                        tokenData,
+                        subject
+                     );
+                  },
+                  `${req.user._id}_${timestamp}` // Unique task ID
+               );
+            } else {
+               // Direct upload for smaller files
+               driveResult = await uploadToUserDrive(
+                  req.file.buffer,
+                  fileName,
+                  req.file.mimetype,
+                  tokenData,
+                  subject
+               );
+            }
+
             if (driveResult.success) {
                storageLocation = 'google-drive';
             }
          } catch (driveError) {
+            console.error('Drive upload error:', driveError.message);
             driveResult = null; // Ensure we fall back to local storage
          }
       }
@@ -259,54 +274,112 @@ export const uploadNote = async (req, res) => {
             reviewedAt: new Date(),
             reportCount: 0
          }
-      };      // Save to database
-      const note = new Note(noteData);
-      const savedNote = await note.save();
+      };
 
-      // Update user's activity - add note to notesUploaded array and increment totalUploads
-      await User.findByIdAndUpdate(
-         req.user._id,
-         {
-            $push: { 'activity.notesUploaded': savedNote._id },
-            $inc: { 'activity.totalUploads': 1 }
-         },
-         { new: true }
-      );
+      // Save to database with transaction-like behavior
+      let savedNote = null;
+      let userUpdated = false;
 
-      // Clean up local file if Google Drive upload was successful
-      if (storageLocation === 'google-drive' && localFilePath) {
-         try {
-            const fs = await import('fs').then(m => m.promises);
-            await fs.unlink(localFilePath);
-         } catch (cleanupError) {
-            // Failed to clean up local file, but not critical
+      try {
+         // Save note to database
+         const note = new Note(noteData);
+         savedNote = await note.save();
+
+         // Update user's activity - add note to notesUploaded array and increment totalUploads
+         await User.findByIdAndUpdate(
+            req.user._id,
+            {
+               $push: { 'activity.notesUploaded': savedNote._id },
+               $inc: { 'activity.totalUploads': 1 }
+            },
+            { new: true }
+         );
+         userUpdated = true;
+
+         // Clean up local file if Google Drive upload was successful
+         if (storageLocation === 'google-drive' && localFilePath) {
+            try {
+               const fs = await import('fs').then(m => m.promises);
+               await fs.unlink(localFilePath);
+            } catch (cleanupError) {
+               console.warn('Failed to clean up local file:', cleanupError.message);
+            }
          }
-      }
 
-      // Create response message
-      let successMessage = storageLocation === 'google-drive'
-         ? `📁 Note uploaded successfully to your Google Drive! The file "${fileName}" is now organized in "Notes-Do/${new Date().getFullYear()}${subject ? `/${subject.replace(/[<>:"/\\|?*]/g, '-')}` : ''}" folder.`
-         : `💾 Note uploaded successfully to local storage! File saved as "${fileName}".`;
+         // Create response message
+         let successMessage = storageLocation === 'google-drive'
+            ? `📁 Note uploaded successfully to your Google Drive! The file "${fileName}" is now organized in "Notes-Do/${new Date().getFullYear()}${subject ? `/${subject.replace(/[<>:"/\\|?*]/g, '-')}` : ''}" folder.`
+            : `💾 Note uploaded successfully to local storage! File saved as "${fileName}".`;
 
-      // Add warning if there was a Google Drive API warning
-      if (driveResult?.warning) {
-         successMessage += ` Note: ${driveResult.warning}`;
-      }
+         // Add warning if there was a Google Drive API warning
+         if (driveResult?.warning) {
+            successMessage += ` Note: ${driveResult.warning}`;
+         }
 
-      res.status(201).json({
-         success: true,
-         message: successMessage,
-         note: savedNote,
-         file: driveResult.file,
-         storageLocation: storageLocation,
-         driveInfo: storageLocation === 'google-drive' ? {
-            fileName: driveResult.file.name,
-            driveFileId: driveResult.file.id,
-            viewUrl: driveResult.file.webViewLink,
+         res.status(201).json({
+            success: true,
+            message: successMessage,
+            note: savedNote,
+            file: driveResult.file,
+            storageLocation: storageLocation,
+            driveInfo: storageLocation === 'google-drive' ? {
+               fileName: driveResult.file.name,
+               driveFileId: driveResult.file.id,
+               viewUrl: driveResult.file.webViewLink,
+               warning: driveResult?.warning
+            } : null,
             warning: driveResult?.warning
-         } : null,
-         warning: driveResult?.warning
-      });
+         });
+
+      } catch (dbError) {
+         console.error('Database operation failed:', dbError);
+
+         // Rollback: Delete the note from database if it was saved
+         if (savedNote && savedNote._id) {
+            try {
+               await Note.findByIdAndDelete(savedNote._id);
+            } catch (deleteError) {
+               console.error('Failed to rollback note deletion:', deleteError.message);
+            }
+         }
+
+         // Rollback: Remove note from user's activity if it was updated
+         if (userUpdated && savedNote) {
+            try {
+               await User.findByIdAndUpdate(
+                  req.user._id,
+                  {
+                     $pull: { 'activity.notesUploaded': savedNote._id },
+                     $inc: { 'activity.totalUploads': -1 }
+                  }
+               );
+            } catch (updateError) {
+               console.error('Failed to rollback user activity:', updateError.message);
+            }
+         }
+
+         // Rollback: Delete file from Google Drive if it was uploaded
+         if (storageLocation === 'google-drive' && driveResult?.file?.id && tokenData) {
+            try {
+               const { deleteFromUserDrive } = await import('../utils/googleDrive.js');
+               await deleteFromUserDrive(driveResult.file.id, tokenData);
+            } catch (driveDeleteError) {
+               console.error('Failed to rollback Google Drive file:', driveDeleteError.message);
+            }
+         }
+
+         // Rollback: Delete local file if it exists
+         if (localFilePath) {
+            try {
+               const fs = await import('fs').then(m => m.promises);
+               await fs.unlink(localFilePath);
+            } catch (localDeleteError) {
+               console.error('Failed to rollback local file:', localDeleteError.message);
+            }
+         }
+
+         throw dbError;
+      }
 
    } catch (error) {
       console.error('Upload error:', error);
@@ -332,9 +405,6 @@ export const uploadNote = async (req, res) => {
 // Get notes feed - optimized for card display with pagination
 export const getNotesFeed = async (req, res) => {
    try {
-      // Ensure database connection for serverless environments
-      await connectDB();
-
       const {
          page = 1,
          limit = 12,
@@ -559,9 +629,6 @@ export const getNotesFeed = async (req, res) => {
 // Get detailed note by ID with proper visibility controls
 export const getNoteById = async (req, res) => {
    try {
-      // Ensure database connection for serverless environments
-      await connectDB();
-
       const { id } = req.params;
 
       // Validate note ID
@@ -747,9 +814,6 @@ export const getNoteById = async (req, res) => {
 // Download note file
 export const downloadNote = async (req, res) => {
    try {
-      // Ensure database connection for serverless environments
-      await connectDB();
-
       const { id } = req.params;
 
       const note = await Note.findById(id);
@@ -962,6 +1026,27 @@ export const unlikeNote = async (req, res) => {
 
 
 
+// Get upload queue statistics
+export const getUploadQueueStatus = async (req, res) => {
+   try {
+      const stats = uploadQueue.getStatistics();
+
+      res.status(200).json({
+         success: true,
+         message: 'Upload queue statistics',
+         statistics: stats,
+         timestamp: new Date().toISOString()
+      });
+   } catch (error) {
+      console.error('Error getting queue status:', error);
+      res.status(500).json({
+         success: false,
+         message: 'Failed to get queue status',
+         error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+   }
+};
+
 // Check note processing status
 export const checkNoteStatus = async (req, res) => {
    try {
@@ -1027,9 +1112,6 @@ export const checkNoteStatus = async (req, res) => {
 // Delete note (owner only)
 export const deleteNote = async (req, res) => {
    try {
-      // Ensure database connection for serverless environments
-      await connectDB();
-
       const { id } = req.params;
       const currentUserId = req.user._id;
 
@@ -1054,8 +1136,12 @@ export const deleteNote = async (req, res) => {
          });
       }
 
-      // Step 1: Delete from Google Drive (if user has connected Google Drive)
+      // CRITICAL: Delete from Google Drive FIRST, then database
+      // This prevents orphaned files in Drive if database deletion succeeds but Drive deletion fails
+
+      // Step 1: Attempt to delete from Google Drive (if user has connected Google Drive)
       let driveDeleteResult = null;
+      let shouldProceedWithDatabaseDeletion = false;
       const { googleDriveToken } = req.body;
 
       if (googleDriveToken && note.file.driveFileId) {
@@ -1063,29 +1149,60 @@ export const deleteNote = async (req, res) => {
             // Decode the Google Drive token
             const tokenData = JSON.parse(Buffer.from(googleDriveToken, 'base64').toString('utf-8'));
             driveDeleteResult = await deleteFromUserDrive(note.file.driveFileId, tokenData);
+
+            // Check if Drive deletion was successful
+            if (driveDeleteResult.success) {
+               shouldProceedWithDatabaseDeletion = true;
+            } else {
+               // IMPORTANT: Do NOT proceed with database deletion if Drive deletion failed
+               return res.status(500).json({
+                  success: false,
+                  message: 'Failed to delete file from Google Drive. Database record preserved to prevent orphaned files.',
+                  error: driveDeleteResult.error,
+                  note: {
+                     _id: note._id,
+                     title: note.title,
+                     driveFileId: note.file.driveFileId
+                  },
+                  recommendation: 'Please try again or manually delete the file from Google Drive before retrying.'
+               });
+            }
          } catch (tokenError) {
-            driveDeleteResult = {
+            return res.status(400).json({
                success: false,
-               error: `Invalid Google Drive token: ${tokenError.message}`,
-               skipped: true
-            };
+               message: 'Invalid Google Drive token. Cannot delete file safely.',
+               error: tokenError.message,
+               recommendation: 'Please reconnect your Google Drive account and try again.'
+            });
          }
       } else if (!googleDriveToken) {
+         // User didn't provide token - allow deletion with warning
          driveDeleteResult = {
             success: true,
             message: 'Google Drive deletion skipped (no token provided)',
             skipped: true
          };
+         shouldProceedWithDatabaseDeletion = true;
       } else if (!note.file.driveFileId) {
+         // No Drive file ID - safe to delete from database
          driveDeleteResult = {
             success: true,
             message: 'Google Drive deletion skipped (no file ID found)',
             skipped: true
          };
+         shouldProceedWithDatabaseDeletion = true;
       }
 
-      // Step 2: Immediate cleanup (uploader only) + Background processing for user associations
-      // Remove from uploader's notesUploaded array (immediate)
+      // Step 2: Only proceed with database deletion if Drive deletion succeeded or was skipped
+      if (!shouldProceedWithDatabaseDeletion) {
+         return res.status(500).json({
+            success: false,
+            message: 'Cannot delete note from database. File still exists in Google Drive.',
+            error: 'Drive deletion failed - preventing orphaned files'
+         });
+      }
+
+      // Step 3: Remove from uploader's notesUploaded array (immediate)
       await User.findByIdAndUpdate(
          currentUserId,
          {
@@ -1094,37 +1211,35 @@ export const deleteNote = async (req, res) => {
          }
       );
 
-      // Step 3: Delete the note from database immediately (user gets instant feedback)
+      // Step 4: Delete the note from database
       await Note.findByIdAndDelete(id);
 
-      // Step 4: Start background cleanup process for user associations (non-blocking)
-
-
-      // Fire and forget - this runs in background without blocking the response
+      // Step 5: Start background cleanup process for user associations (non-blocking)
       setImmediate(async () => {
          try {
             await cleanupNoteAssociations(id, note.title);
          } catch (bgError) {
-            // Could implement retry logic or dead letter queue here
+            console.error('Background cleanup failed:', bgError.message);
          }
       });
 
       // Prepare response message
-      let message = `Note "${note.title}" has been successfully deleted from the database`;
+      let message = `Note "${note.title}" has been successfully deleted`;
       if (driveDeleteResult) {
          if (driveDeleteResult.success && !driveDeleteResult.skipped) {
-            message += ' and removed from your Google Drive';
+            message = `✅ Note "${note.title}" deleted successfully from both Google Drive and database`;
          } else if (driveDeleteResult.skipped) {
-            message += '. Google Drive file was not deleted (no connection token provided)';
-         } else {
-            message += '. Warning: Failed to delete from Google Drive';
+            message = `✅ Note "${note.title}" deleted from database. Google Drive file was not deleted (${driveDeleteResult.message})`;
          }
       }
       message += '. User associations are being cleaned up in the background.';
 
       const warnings = [];
-      if (driveDeleteResult && !driveDeleteResult.success && !driveDeleteResult.skipped) {
-         warnings.push(driveDeleteResult.error);
+      if (driveDeleteResult?.skipped) {
+         warnings.push({
+            type: 'info',
+            message: 'File may still exist in your Google Drive. You can manually delete it if needed.'
+         });
       }
 
       res.status(200).json({

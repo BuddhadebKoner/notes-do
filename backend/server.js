@@ -66,8 +66,10 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Note: Large file uploads are handled by multer with memory storage
+// These limits are for JSON/form data only
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 // Data sanitization against NoSQL query injection
@@ -217,13 +219,20 @@ const startServer = async () => {
 
       // Start listening
       const server = app.listen(PORT, () => {
-         // Server running successfully
+         console.log(`🚀 Server is running on http://localhost:${PORT}`);
       });
 
-      // Set server timeout to 5 minutes for large file uploads
-      server.timeout = 300000; // 5 minutes
-      server.keepAliveTimeout = 300000; // 5 minutes
-      server.headersTimeout = 310000; // Slightly higher than keepAliveTimeout
+      // Set server timeout to 6 minutes for large file uploads (increased for production)
+      // This accounts for:
+      // - File upload time (network)
+      // - Google Drive processing
+      // - Database operations
+      server.timeout = 360000; // 6 minutes
+      server.keepAliveTimeout = 360000; // 6 minutes
+      server.headersTimeout = 370000; // Slightly higher than keepAliveTimeout
+      server.requestTimeout = 360000; // 6 minutes for individual requests
+
+      console.log('⚙️ Server timeouts configured: 6 minutes for large file uploads');
 
       return server;
    } catch (error) {
