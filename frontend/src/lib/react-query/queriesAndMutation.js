@@ -46,7 +46,6 @@ export const useCreateUser = () => {
   return useMutation({
     mutationKey: QUERY_KEYS.CREATE_USER,
     mutationFn: async userData => {
-
       return await authAPI.createUser(userData)
     },
     onSuccess: data => {
@@ -68,8 +67,6 @@ export const useCreateUser = () => {
           message: data.message || 'User created successfully',
           timestamp: new Date().toISOString(),
         })
-
-
       }
     },
     onError: error => {
@@ -90,8 +87,6 @@ export const useUploadNote = onProgress => {
         // Invalidate and refetch notes feed
         queryClient.invalidateQueries({ queryKey: ['notes', 'feed'] })
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GET_PROFILE })
-
-
       }
     },
     onError: error => {
@@ -138,41 +133,41 @@ export const useUpdateNoteDetails = () => {
               notes: old.data.notes.map(note =>
                 note._id === noteId
                   ? {
-                    ...note,
-                    // Only update fields that are actually provided
-                    ...(data.title && { title: data.title }),
-                    ...(data.description && {
-                      description: data.description,
-                    }),
-                    subject: {
-                      ...note.subject,
-                      ...(data.subject && { name: data.subject }),
-                      ...(data.category && { category: data.category }),
-                      ...(data.difficulty && { difficulty: data.difficulty }),
-                    },
-                    academic: {
-                      ...note.academic,
-                      ...(data.university && { university: data.university }),
-                      ...(data.department && { department: data.department }),
-                      ...(data.semester && {
-                        semester: parseInt(data.semester),
+                      ...note,
+                      // Only update fields that are actually provided
+                      ...(data.title && { title: data.title }),
+                      ...(data.description && {
+                        description: data.description,
                       }),
-                      ...(data.graduationYear && {
-                        graduationYear: parseInt(data.graduationYear),
+                      subject: {
+                        ...note.subject,
+                        ...(data.subject && { name: data.subject }),
+                        ...(data.category && { category: data.category }),
+                        ...(data.difficulty && { difficulty: data.difficulty }),
+                      },
+                      academic: {
+                        ...note.academic,
+                        ...(data.university && { university: data.university }),
+                        ...(data.department && { department: data.department }),
+                        ...(data.semester && {
+                          semester: parseInt(data.semester),
+                        }),
+                        ...(data.graduationYear && {
+                          graduationYear: parseInt(data.graduationYear),
+                        }),
+                        ...(data.degree && { degree: data.degree }),
+                      },
+                      ...(data.visibility && { visibility: data.visibility }),
+                      ...(data.tags && {
+                        tags:
+                          typeof data.tags === 'string'
+                            ? data.tags
+                                .split(',')
+                                .map(tag => tag.trim())
+                                .filter(Boolean)
+                            : data.tags,
                       }),
-                      ...(data.degree && { degree: data.degree }),
-                    },
-                    ...(data.visibility && { visibility: data.visibility }),
-                    ...(data.tags && {
-                      tags:
-                        typeof data.tags === 'string'
-                          ? data.tags
-                            .split(',')
-                            .map(tag => tag.trim())
-                            .filter(Boolean)
-                          : data.tags,
-                    }),
-                  }
+                    }
                   : note
               ),
             },
@@ -215,8 +210,6 @@ export const useUpdateNoteDetails = () => {
             }
           }
         )
-
-
       }
     },
     onError: (error, variables, context) => {
@@ -259,7 +252,6 @@ export const useGetProfile = (options = {}) => {
   return useQuery({
     queryKey: QUERY_KEYS.GET_PROFILE,
     queryFn: async () => {
-
       // Simply try to get the profile, let errors bubble up for manual handling
       return await profileAPI.getProfile()
     },
@@ -569,13 +561,13 @@ export const useLikeNote = () => {
         notes.map(note =>
           note._id === noteId
             ? {
-              ...note,
-              stats: {
-                ...note.stats,
-                likes: data.data.likesCount,
-                isLiked: true,
-              },
-            }
+                ...note,
+                stats: {
+                  ...note.stats,
+                  likes: data.data.likesCount,
+                  isLiked: true,
+                },
+              }
             : note
         )
 
@@ -638,13 +630,13 @@ export const useUnlikeNote = () => {
         notes.map(note =>
           note._id === noteId
             ? {
-              ...note,
-              stats: {
-                ...note.stats,
-                likes: data.data.likesCount,
-                isLiked: false,
-              },
-            }
+                ...note,
+                stats: {
+                  ...note.stats,
+                  likes: data.data.likesCount,
+                  isLiked: false,
+                },
+              }
             : note
         )
 
@@ -1020,8 +1012,6 @@ export const useUpdateProfile = () => {
         // Update profile data in cache
         queryClient.setQueryData(QUERY_KEYS.GET_PROFILE, data)
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GET_PROFILE })
-
-
       }
     },
     onError: error => {
@@ -1103,8 +1093,6 @@ export const useFollowUser = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_PROFILE,
         })
-
-
       }
     },
     onError: (error, username, context) => {
@@ -1195,8 +1183,6 @@ export const useUnfollowUser = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_PROFILE,
         })
-
-
       }
     },
     onError: (error, username, context) => {
@@ -1394,7 +1380,6 @@ export const useCreateShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_SHARE_INFO(variables.noteId),
         })
-
       }
     },
     onError: error => {
@@ -1427,7 +1412,6 @@ export const useDisableShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_SHARE_INFO(noteId),
         })
-
       }
     },
     onError: error => {
@@ -1490,7 +1474,6 @@ export const useCreateWishlistShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(variables.wishlistId),
         })
-
       }
     },
     onError: error => {
@@ -1523,7 +1506,6 @@ export const useDisableWishlistShareLink = () => {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.GET_WISHLIST_SHARE_INFO(wishlistId),
         })
-
       }
     },
     onError: error => {
@@ -1588,6 +1570,37 @@ export const useGetGoogleDriveAccountInfo = (enabled = true) => {
     },
     enabled: enabled && !!localStorage.getItem('googleDriveToken'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    retry: (failureCount, error) => {
+      // Don't retry if token is invalid or expired
+      if (error?.needsReauth) {
+        return false
+      }
+      return failureCount < 2
+    },
+    onError: error => {
+      // If token is invalid, remove it from localStorage
+      if (error?.needsReauth) {
+        localStorage.removeItem('googleDriveToken')
+      }
+    },
+  })
+}
+
+// Hook to get Google Drive folder structure
+export const useGetGoogleDriveFolderStructure = (enabled = true) => {
+  return useQuery({
+    queryKey: QUERY_KEYS.GOOGLE_DRIVE_FOLDER_STRUCTURE,
+    queryFn: async () => {
+      // Get token from localStorage
+      const googleDriveToken = localStorage.getItem('googleDriveToken')
+      if (!googleDriveToken) {
+        throw new Error('No Google Drive token found')
+      }
+      return googleAPI.getFolderStructure(googleDriveToken)
+    },
+    enabled: enabled && !!localStorage.getItem('googleDriveToken'),
+    staleTime: 3 * 60 * 1000, // 3 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
     retry: (failureCount, error) => {
       // Don't retry if token is invalid or expired

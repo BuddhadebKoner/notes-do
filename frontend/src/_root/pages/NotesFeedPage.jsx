@@ -456,38 +456,38 @@ const NotesFeedPage = () => {
                     value &&
                     value !== 'all'
                 )) && (
-                  <div className='flex items-center gap-2 flex-wrap'>
-                    <span className='text-sm text-gray-600'>Active:</span>
-                    {searchTerm && (
+                <div className='flex items-center gap-2 flex-wrap'>
+                  <span className='text-sm text-gray-600'>Active:</span>
+                  {searchTerm && (
+                    <Badge
+                      variant='secondary'
+                      className='text-xs cursor-pointer hover:bg-gray-200'
+                      onClick={() => clearSpecificFilter('search')}
+                    >
+                      search: "{searchTerm}" ×
+                    </Badge>
+                  )}
+                  {Object.entries(filters).map(([key, value]) => {
+                    if (
+                      key === 'sortBy' ||
+                      key === 'sortOrder' ||
+                      !value ||
+                      value === 'all'
+                    )
+                      return null
+                    return (
                       <Badge
+                        key={key}
                         variant='secondary'
                         className='text-xs cursor-pointer hover:bg-gray-200'
-                        onClick={() => clearSpecificFilter('search')}
+                        onClick={() => clearSpecificFilter(key)}
                       >
-                        search: "{searchTerm}" ×
+                        {key}: {value} ×
                       </Badge>
-                    )}
-                    {Object.entries(filters).map(([key, value]) => {
-                      if (
-                        key === 'sortBy' ||
-                        key === 'sortOrder' ||
-                        !value ||
-                        value === 'all'
-                      )
-                        return null
-                      return (
-                        <Badge
-                          key={key}
-                          variant='secondary'
-                          className='text-xs cursor-pointer hover:bg-gray-200'
-                          onClick={() => clearSpecificFilter(key)}
-                        >
-                          {key}: {value} ×
-                        </Badge>
-                      )
-                    })}
-                  </div>
-                )}
+                    )
+                  })}
+                </div>
+              )}
 
               <Button
                 variant='outline'

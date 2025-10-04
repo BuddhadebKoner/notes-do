@@ -56,19 +56,15 @@ const GoogleDriveStatus = ({ onConnectionChange, className = '' }) => {
     setConnectionError(null)
 
     try {
-
-
       // Get Clerk token for authentication
       let token = null
       let retries = 3
 
       while (retries > 0 && !token) {
         try {
-
           token = await getToken()
           if (token) break
         } catch (tokenError) {
-
           retries--
           if (retries > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000))
@@ -105,8 +101,6 @@ const GoogleDriveStatus = ({ onConnectionChange, className = '' }) => {
       if (!data.success || !data.authUrl) {
         throw new Error(data.message || 'Failed to get authentication URL')
       }
-
-
 
       // Redirect to Google's OAuth page
       window.location.href = data.authUrl

@@ -5,16 +5,14 @@ const userSchema = new mongoose.Schema({
    clerkId: {
       type: String,
       required: true,
-      unique: true,
-      index: true
+      unique: true
    },
    email: {
       type: String,
       required: true,
       unique: true,
       lowercase: true,
-      trim: true,
-      index: true
+      trim: true
    },
    username: {
       type: String,
@@ -22,8 +20,7 @@ const userSchema = new mongoose.Schema({
       unique: true,
       trim: true,
       minlength: 3,
-      maxlength: 30,
-      index: true
+      maxlength: 30
    },
    // Note: No password field - handled by Clerk
 
@@ -248,8 +245,7 @@ const userSchema = new mongoose.Schema({
             shareToken: {
                type: String,
                unique: true,
-               sparse: true, // Allows null values while maintaining uniqueness
-               index: true
+               sparse: true // Allows null values while maintaining uniqueness
             },
             shareTokenExpiry: {
                type: Date
@@ -389,14 +385,10 @@ const userSchema = new mongoose.Schema({
    toObject: { virtuals: true }
 });
 
-// Indexes for better performance
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ clerkId: 1 });
+// Indexes for better performance (unique fields already have indexes)
 userSchema.index({ 'academic.university': 1, 'academic.department': 1 });
 userSchema.index({ 'account.isActive': 1, 'account.isVerified': 1 });
 userSchema.index({ createdAt: -1 });
-userSchema.index({ 'activity.wishlists.sharing.shareToken': 1 });
 
 // Virtual for full name
 userSchema.virtual('profile.fullName').get(function () {

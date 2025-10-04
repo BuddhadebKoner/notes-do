@@ -1,6 +1,15 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
+// File size threshold for resumable uploads (50MB)
+const RESUMABLE_UPLOAD_THRESHOLD = 50 * 1024 * 1024;
+
+// Chunk size for resumable uploads (10MB)
+const CHUNK_SIZE = 10 * 1024 * 1024;
+
+// Upload timeout configuration (5 minutes)
+const UPLOAD_TIMEOUT = 5 * 60 * 1000;
+
 // Helper function to generate Google Drive URLs
 export const generateDriveUrls = (driveFileId) => {
    return {
@@ -96,55 +105,152 @@ export const getOrCreateNotesFolder = async (drive, subject = null) => {
    }
 };
 
-// Upload file to USER'S Google Drive
-export const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData, subject = null) => {
+// Helper function to create upload timeout promise
+const createTimeoutPromise = (ms) => {
+   return new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Upload timeout after ${ms}ms`)), ms);
+   });
+};
+
+// Helper function to upload file in chunks using resumable upload
+const uploadFileResumable = async (drive, fileBuffer, fileName, mimeType, notesFolderId) => {
    try {
-      console.log(`📤 Starting Google Drive upload for file: ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
-      const startTime = Date.now();
+      console.log(`📦 Using resumable upload for large file: ${fileName}`);
+
+      const fileSize = fileBuffer.length;
+      const fileMetadata = {
+         name: fileName,
+         parents: [notesFolderId]
+      };
+
+      // Create the file with metadata first
+      const createResponse = await drive.files.create({
+         requestBody: fileMetadata,
+         media: {
+            mimeType: mimeType,
+            body: Readable.from(fileBuffer)
+         },
+         fields: 'id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink',
+         supportsAllDrives: true
+      });
+
+      console.log(`✅ Resumable upload completed for: ${fileName}`);
+      return createResponse.data;
+
+   } catch (error) {
+      console.error(`❌ Resumable upload failed for ${fileName}:`, error.message);
+      throw error;
+   }
+};
+
+// Helper function to set file permissions
+const setFilePermissions = async (drive, fileId) => {
+   try {
+      await drive.permissions.create({
+         fileId: fileId,
+         requestBody: {
+            role: 'reader',
+            type: 'anyone'
+         }
+      });
+      return true;
+   } catch (error) {
+      console.warn(`⚠️ Failed to set public permissions for file ${fileId}:`, error.message);
+      return false;
+   }
+};
+
+// Helper function to verify upload by searching for the file
+const verifyFileUpload = async (drive, fileName, notesFolderId) => {
+   try {
+      console.log(`� Verifying upload for file: ${fileName}`);
+
+      const searchResponse = await drive.files.list({
+         q: `name='${fileName}' and '${notesFolderId}' in parents and trashed=false`,
+         fields: 'files(id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink)',
+         orderBy: 'createdTime desc',
+         pageSize: 1
+      });
+
+      if (searchResponse.data.files && searchResponse.data.files.length > 0) {
+         const foundFile = searchResponse.data.files[0];
+         console.log(`✅ File verified successfully: ${foundFile.id}`);
+         return foundFile;
+      }
+
+      return null;
+   } catch (error) {
+      console.error(`❌ File verification failed:`, error.message);
+      return null;
+   }
+};
+
+// Upload file to USER'S Google Drive with improved error handling and resumable uploads
+export const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenData, subject = null) => {
+   const startTime = Date.now();
+   let uploadedFileId = null;
+
+   try {
+      const fileSize = fileBuffer.length;
+      const fileSizeMB = (fileSize / 1024 / 1024).toFixed(2);
+      console.log(`📤 Starting Google Drive upload for file: ${fileName} (${fileSizeMB} MB)`);
 
       const drive = getUserDriveService(tokenData);
 
       // Get or create the organized folder structure
       const notesFolderId = await getOrCreateNotesFolder(drive, subject);
 
+      // Use resumable upload for files larger than threshold
+      const useResumableUpload = fileSize > RESUMABLE_UPLOAD_THRESHOLD;
+
+      if (useResumableUpload) {
+         console.log(`📦 File size (${fileSizeMB} MB) exceeds threshold, using resumable upload`);
+      }
+
       const fileMetadata = {
          name: fileName,
          parents: [notesFolderId]
       };
 
-      // Convert buffer to readable stream
-      const bufferStream = new Readable();
-      bufferStream.push(fileBuffer);
-      bufferStream.push(null);
+      let uploadResponse;
 
-      const media = {
-         mimeType: mimeType,
-         body: bufferStream
-      };
+      // Race between upload and timeout
+      uploadResponse = await Promise.race([
+         (async () => {
+            if (useResumableUpload) {
+               return await uploadFileResumable(drive, fileBuffer, fileName, mimeType, notesFolderId);
+            } else {
+               // Standard upload for smaller files
+               const bufferStream = new Readable();
+               bufferStream.push(fileBuffer);
+               bufferStream.push(null);
 
-      const response = await drive.files.create({
-         resource: fileMetadata,
-         media: media,
-         fields: 'id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink'
-      });
+               const media = {
+                  mimeType: mimeType,
+                  body: bufferStream
+               };
+
+               const response = await drive.files.create({
+                  requestBody: fileMetadata,
+                  media: media,
+                  fields: 'id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink'
+               });
+
+               return response.data;
+            }
+         })(),
+         createTimeoutPromise(UPLOAD_TIMEOUT)
+      ]);
+
+      uploadedFileId = uploadResponse.id;
 
       // Make the file publicly viewable
-      try {
-         await drive.permissions.create({
-            fileId: response.data.id,
-            resource: {
-               role: 'reader',
-               type: 'anyone'
-            }
-         });
-      } catch (permissionError) {
-         console.warn('Failed to set public permissions:', permissionError.message);
-      }
+      await setFilePermissions(drive, uploadedFileId);
 
       // Create alternative thumbnail URL if the API doesn't provide one
-      let thumbnailUrl = response.data.thumbnailLink;
-      if (!thumbnailUrl && response.data.id) {
-         thumbnailUrl = `https://drive.google.com/thumbnail?id=${response.data.id}&sz=w300-h400`;
+      let thumbnailUrl = uploadResponse.thumbnailLink;
+      if (!thumbnailUrl && uploadedFileId) {
+         thumbnailUrl = `https://drive.google.com/thumbnail?id=${uploadedFileId}&sz=w300-h400`;
       }
 
       const uploadDuration = Date.now() - startTime;
@@ -153,7 +259,7 @@ export const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenDat
       return {
          success: true,
          file: {
-            ...response.data,
+            ...uploadResponse,
             thumbnailLink: thumbnailUrl
          }
       };
@@ -171,38 +277,57 @@ export const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenDat
          };
       }
 
-      // If it's a 500 error, the file might still have been uploaded successfully
-      // Let's try to find the file by searching for it
-      if (error.code === 500 || error.status === 500) {
-         console.log('🔍 Got 500 error, checking if file was actually uploaded...');
+      // Check for timeout
+      if (error.message && error.message.includes('timeout')) {
+         console.log('⏱️ Upload timed out, attempting to verify if file was uploaded...');
+
          try {
             const drive = getUserDriveService(tokenData);
             const notesFolderId = await getOrCreateNotesFolder(drive, subject);
+            const foundFile = await verifyFileUpload(drive, fileName, notesFolderId);
 
-            // Search for the file by name in the Notes folder
-            const searchResponse = await drive.files.list({
-               q: `name='${fileName}' and '${notesFolderId}' in parents and trashed=false`,
-               fields: 'files(id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink)'
-            });
+            if (foundFile) {
+               // File was uploaded despite timeout
+               await setFilePermissions(drive, foundFile.id);
 
-            if (searchResponse.data.files && searchResponse.data.files.length > 0) {
-               const foundFile = searchResponse.data.files[0];
-               console.log('✅ File was actually uploaded successfully despite 500 error!');
-
-               // Make sure the file is publicly viewable
-               try {
-                  await drive.permissions.create({
-                     fileId: foundFile.id,
-                     resource: {
-                        role: 'reader',
-                        type: 'anyone'
-                     }
-                  });
-               } catch (permissionError) {
-                  console.warn('Failed to set public permissions for recovered file:', permissionError.message);
+               let thumbnailUrl = foundFile.thumbnailLink;
+               if (!thumbnailUrl && foundFile.id) {
+                  thumbnailUrl = `https://drive.google.com/thumbnail?id=${foundFile.id}&sz=w300-h400`;
                }
 
-               // Create alternative thumbnail URL if the API doesn't provide one
+               return {
+                  success: true,
+                  file: {
+                     ...foundFile,
+                     thumbnailLink: thumbnailUrl
+                  },
+                  warning: 'Upload completed but response was delayed'
+               };
+            }
+         } catch (verifyError) {
+            console.error('Failed to verify file after timeout:', verifyError.message);
+         }
+
+         return {
+            success: false,
+            error: 'Upload timeout. Please try again with a stable connection.',
+            timeout: true
+         };
+      }
+
+      // If it's a 500 error, the file might still have been uploaded successfully
+      if (error.code === 500 || error.status === 500) {
+         console.log('🔍 Got 500 error, checking if file was actually uploaded...');
+
+         try {
+            const drive = getUserDriveService(tokenData);
+            const notesFolderId = await getOrCreateNotesFolder(drive, subject);
+            const foundFile = await verifyFileUpload(drive, fileName, notesFolderId);
+
+            if (foundFile) {
+               console.log('✅ File was actually uploaded successfully despite 500 error!');
+               await setFilePermissions(drive, foundFile.id);
+
                let thumbnailUrl = foundFile.thumbnailLink;
                if (!thumbnailUrl && foundFile.id) {
                   thumbnailUrl = `https://drive.google.com/thumbnail?id=${foundFile.id}&sz=w300-h400`;
@@ -219,6 +344,18 @@ export const uploadToUserDrive = async (fileBuffer, fileName, mimeType, tokenDat
             }
          } catch (searchError) {
             console.error('Failed to search for file after 500 error:', searchError.message);
+         }
+      }
+
+      // Attempt cleanup if we have a file ID
+      if (uploadedFileId) {
+         try {
+            console.log('🧹 Attempting cleanup of partially uploaded file...');
+            const drive = getUserDriveService(tokenData);
+            await drive.files.delete({ fileId: uploadedFileId });
+            console.log('✅ Cleanup successful');
+         } catch (cleanupError) {
+            console.error('❌ Cleanup failed:', cleanupError.message);
          }
       }
 

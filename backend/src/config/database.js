@@ -19,9 +19,9 @@ class DatabaseConnection {
 
       mongoose.connection.on('connected', () => {
          this.isConnected = true;
-         console.log('✅ Database connected successfully');
-         console.log(`📊 Connected to database: ${mongoose.connection.db.databaseName}`);
-         console.log(`🌐 Host: ${mongoose.connection.host}`);
+         if (process.env.NODE_ENV !== 'production') {
+            console.log('✅ Database connected successfully');
+         }
       });
 
       mongoose.connection.on('error', err => {
@@ -33,7 +33,6 @@ class DatabaseConnection {
       });
 
       mongoose.connection.on('disconnected', () => {
-
          this.isConnected = false;
          if (!this.isRetrying) {
             this.retryConnection();
@@ -54,8 +53,6 @@ class DatabaseConnection {
                'MONGODB_URI environment variable is not defined'
             );
          }
-
-         console.log('🔄 Connecting to database with URI:', mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@'));
 
          const connectOptions = {
             maxPoolSize: 10,
@@ -88,7 +85,9 @@ class DatabaseConnection {
 
       if (this.retryCount < MAX_RETRIES) {
          this.retryCount++;
-         console.log(`🔄 Retrying connection (${this.retryCount}/${MAX_RETRIES})...`);
+         if (process.env.NODE_ENV !== 'production') {
+            console.log(`🔄 Retrying connection (${this.retryCount}/${MAX_RETRIES})...`);
+         }
          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
 
          return this.connect();
@@ -98,7 +97,6 @@ class DatabaseConnection {
 
          // In serverless environments, don't exit the process
          if (process.env.NODE_ENV === 'production' && process.env.VERCEL) {
-            console.log('🚀 Running in serverless environment, not exiting process');
             throw new Error('Database connection failed after maximum retries');
          } else {
             process.exit(1); // Exit the process if max retries are reached
@@ -108,7 +106,6 @@ class DatabaseConnection {
 
    async disconnect() {
       if (this.isConnected) {
-         console.log('🔌 Disconnecting from database...');
          await mongoose.connection.close();
          this.isConnected = false;
       }
@@ -117,7 +114,9 @@ class DatabaseConnection {
    async handleAppTermination() {
       try {
          await mongoose.connection.close();
-         console.log('✅ Database connection closed gracefully');
+         if (process.env.NODE_ENV !== 'production') {
+            console.log('✅ Database connection closed gracefully');
+         }
          process.exit(0);
       } catch (error) {
          console.error('❌ Error closing database connection:', error);
