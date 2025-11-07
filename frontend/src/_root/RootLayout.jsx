@@ -9,7 +9,7 @@ import {
 } from '@clerk/clerk-react'
 import { Button } from '../components/ui/button'
 import { AnimatedBuyButton } from '../components/ui/animated-buy-button'
-import { Upload, User } from 'lucide-react'
+import { Upload, User, Github } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 // Navigation Component
@@ -41,6 +41,17 @@ const Navigation = () => {
 
           {/* Right side - Profile and Actions */}
           <div className='flex items-center space-x-3'>
+            {/* GitHub Repository Link */}
+            <a
+              href='https://github.com/BuddhadebKoner/notes-do'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100'
+              title='View on GitHub'
+            >
+              <Github className='h-5 w-5' />
+            </a>
+
             <SignedIn>
               {/* Upload Button - More Eye-catching */}
               <Button
