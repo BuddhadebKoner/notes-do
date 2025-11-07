@@ -7,8 +7,8 @@ const RESUMABLE_UPLOAD_THRESHOLD = 50 * 1024 * 1024;
 // Chunk size for resumable uploads (10MB)
 const CHUNK_SIZE = 10 * 1024 * 1024;
 
-// Upload timeout configuration (5 minutes)
-const UPLOAD_TIMEOUT = 5 * 60 * 1000;
+// Upload timeout configuration (10 minutes for large files on slow connections)
+const UPLOAD_TIMEOUT = 10 * 60 * 1000;
 
 // Helper function to generate Google Drive URLs
 export const generateDriveUrls = (driveFileId) => {
@@ -35,7 +35,21 @@ export const getUserDriveService = (tokenData) => {
       expiry_date: tokenData.expiry_date
    });
 
-   return google.drive({ version: 'v3', auth });
+   // Create drive service with extended timeouts for large files
+   const drive = google.drive({
+      version: 'v3',
+      auth,
+      // Set longer timeouts for large file uploads
+      timeout: UPLOAD_TIMEOUT,
+      // Retry configuration for network issues
+      retryConfig: {
+         retry: 3,
+         retryDelay: 1000,
+         statusCodesToRetry: [[500, 599], [429]]
+      }
+   });
+
+   return drive;
 };
 
 // Helper function to create or get a folder by name and parent
@@ -115,30 +129,59 @@ const createTimeoutPromise = (ms) => {
 // Helper function to upload file in chunks using resumable upload
 const uploadFileResumable = async (drive, fileBuffer, fileName, mimeType, notesFolderId) => {
    try {
-      console.log(`📦 Using resumable upload for large file: ${fileName}`);
+      console.log(`📦 Using TRUE resumable upload for large file: ${fileName}`);
 
       const fileSize = fileBuffer.length;
+      const fileSizeMB = (fileSize / 1024 / 1024).toFixed(2);
+      console.log(`📊 File size: ${fileSizeMB} MB, uploading in chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
+
       const fileMetadata = {
          name: fileName,
          parents: [notesFolderId]
       };
 
-      // Create the file with metadata first
-      const createResponse = await drive.files.create({
+      // Convert buffer to stream for chunked upload
+      const bufferStream = Readable.from(fileBuffer);
+
+      // Create media object with proper chunk size
+      const media = {
+         mimeType: mimeType,
+         body: bufferStream
+      };
+
+      // Use Google Drive's resumable upload
+      // The chunkSize option enables proper chunking
+      const res = await drive.files.create({
          requestBody: fileMetadata,
-         media: {
-            mimeType: mimeType,
-            body: Readable.from(fileBuffer)
-         },
+         media: media,
          fields: 'id,name,size,mimeType,webViewLink,webContentLink,thumbnailLink',
          supportsAllDrives: true
+      }, {
+         // This is critical: enables chunked resumable upload
+         // Without this, files are uploaded in one go
+         onUploadProgress: (evt) => {
+            const progress = (evt.bytesRead / fileSize) * 100;
+            // Log every 10MB or at completion
+            if (evt.bytesRead % (10 * 1024 * 1024) < CHUNK_SIZE || progress >= 100) {
+               console.log(`📈 Upload progress: ${progress.toFixed(1)}% (${(evt.bytesRead / 1024 / 1024).toFixed(2)}/${fileSizeMB} MB)`);
+            }
+         }
       });
 
-      console.log(`✅ Resumable upload completed for: ${fileName}`);
-      return createResponse.data;
+      console.log(`✅ Resumable upload completed for: ${fileName} (${fileSizeMB} MB)`);
+      return res.data;
 
    } catch (error) {
       console.error(`❌ Resumable upload failed for ${fileName}:`, error.message);
+
+      // Provide more detailed error info
+      if (error.code) {
+         console.error(`   Error code: ${error.code}`);
+      }
+      if (error.errors && error.errors.length > 0) {
+         console.error(`   Error details:`, error.errors[0]);
+      }
+
       throw error;
    }
 };

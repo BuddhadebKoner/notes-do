@@ -222,17 +222,18 @@ const startServer = async () => {
          console.log(`🚀 Server is running on http://localhost:${PORT}`);
       });
 
-      // Set server timeout to 6 minutes for large file uploads (increased for production)
+      // Set server timeout to 12 minutes for large file uploads (increased for production)
       // This accounts for:
-      // - File upload time (network)
-      // - Google Drive processing
+      // - File upload time (network to server)
+      // - Google Drive resumable upload (chunked)
       // - Database operations
-      server.timeout = 360000; // 6 minutes
-      server.keepAliveTimeout = 360000; // 6 minutes
-      server.headersTimeout = 370000; // Slightly higher than keepAliveTimeout
-      server.requestTimeout = 360000; // 6 minutes for individual requests
+      // - Verification and cleanup
+      server.timeout = 720000; // 12 minutes
+      server.keepAliveTimeout = 720000; // 12 minutes
+      server.headersTimeout = 730000; // Slightly higher than keepAliveTimeout
+      server.requestTimeout = 720000; // 12 minutes for individual requests
 
-      console.log('⚙️ Server timeouts configured: 6 minutes for large file uploads');
+      console.log('⚙️ Server timeouts configured: 12 minutes for large file uploads');
 
       return server;
    } catch (error) {
