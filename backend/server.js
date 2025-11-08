@@ -20,6 +20,7 @@ import profileRoutes from './src/routes/profile.js';
 import commentRoutes from './src/routes/comments.js';
 import shareRoutes from './src/routes/share.js';
 import wishlistShareRoutes from './src/routes/wishlistShare.js';
+import notificationRoutes from './src/routes/notifications.js';
 
 // Load environment variables
 dotenv.config();
@@ -60,7 +61,7 @@ const corsOptions = {
    ],
    credentials: true,
    optionsSuccessStatus: 200,
-   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
    allowedHeaders: ['Content-Type', 'Authorization', 'x-clerk-auth-token'],
 };
 app.use(cors(corsOptions));
@@ -151,7 +152,8 @@ app.get('/api', (req, res) => {
          google: '/api/google',
          comments: '/api/comments',
          share: '/api/share',
-         wishlistShare: '/api/wishlist-share'
+         wishlistShare: '/api/wishlist-share',
+         notifications: '/api/notifications'
       },
    });
 });
@@ -164,6 +166,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/share', shareRoutes);
 app.use('/api/wishlist-share', wishlistShareRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Serve uploaded files (for development fallback)
 app.use('/uploads', express.static('uploads'));

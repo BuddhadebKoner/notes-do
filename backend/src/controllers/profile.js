@@ -1,4 +1,4 @@
-import { User, Note } from '../models/index.js';
+import { User, Note, Notification } from '../models/index.js';
 import mongoose from 'mongoose';
 
 // Get user profile with complete information
@@ -1030,6 +1030,10 @@ export const followUser = async (req, res) => {
       // Use the efficient toggleFollow method
       const result = await User.toggleFollow(req.user._id, userToFollow._id, 'follow');
 
+      // Create follow notification (don't await to avoid blocking the response)
+      Notification.createFollowNotification(req.user._id, userToFollow._id)
+         .catch(error => console.error('Failed to create follow notification:', error));
+
       res.status(200).json({
          success: true,
          message: `You are now following ${userToFollow.profile.firstName}`,
@@ -1100,6 +1104,10 @@ export const unfollowUser = async (req, res) => {
 
       // Use the efficient toggleFollow method
       const result = await User.toggleFollow(req.user._id, userToUnfollow._id, 'unfollow');
+
+      // Delete follow notification (don't await to avoid blocking the response)
+      Notification.deleteFollowNotification(req.user._id, userToUnfollow._id)
+         .catch(error => console.error('Failed to delete follow notification:', error));
 
       res.status(200).json({
          success: true,

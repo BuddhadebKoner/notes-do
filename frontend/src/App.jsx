@@ -21,6 +21,7 @@ import PublicProfile from './_root/pages/PublicProfile'
 import SharePage from './pages/SharePage'
 import SharedWishlistPage from './pages/SharedWishlistPage'
 import Drive from './_root/_profile/components/Drive'
+import NotificationsPage from './_root/pages/NotificationsPage'
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path='notes' element={<NotesFeedPage />} />
             <Route path='buy-notes' element={<ComingSoon />} />
+            <Route path='notifications' element={<NotificationsPage />} />
             <Route path='profile' element={<ProfileLayout />}>
               <Route index element={<ProfileOverview />} />
               <Route path='uploaded' element={<UploadedNotes />} />

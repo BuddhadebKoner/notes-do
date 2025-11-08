@@ -11,6 +11,7 @@ import { Button } from '../components/ui/button'
 import { AnimatedBuyButton } from '../components/ui/animated-buy-button'
 import { Upload, User, Github } from 'lucide-react'
 import { cn } from '../lib/utils'
+import NotificationDropdown from '../components/notifications/NotificationDropdown'
 
 // Navigation Component
 const Navigation = () => {
@@ -65,6 +66,9 @@ const Navigation = () => {
                   {/* <span className='font-semibold'>Upload Note</span> */}
                 </Link>
               </Button>
+
+              {/* Notification Dropdown */}
+              <NotificationDropdown />
 
               {/* Profile Section - Connected Bar */}
               <div className='flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 transition-colors duration-200 rounded-lg px-3 py-2 border'>

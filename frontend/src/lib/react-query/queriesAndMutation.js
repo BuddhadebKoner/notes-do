@@ -11,6 +11,7 @@ import {
   googleAPI,
 } from '../../services/api.js'
 import { profileAPI } from '../../services/api.js'
+import notificationAPI from '../../services/notificationAPI.js'
 
 // Mutation to check login status
 export const useCheckLogin = () => {
@@ -133,41 +134,41 @@ export const useUpdateNoteDetails = () => {
               notes: old.data.notes.map(note =>
                 note._id === noteId
                   ? {
-                      ...note,
-                      // Only update fields that are actually provided
-                      ...(data.title && { title: data.title }),
-                      ...(data.description && {
-                        description: data.description,
+                    ...note,
+                    // Only update fields that are actually provided
+                    ...(data.title && { title: data.title }),
+                    ...(data.description && {
+                      description: data.description,
+                    }),
+                    subject: {
+                      ...note.subject,
+                      ...(data.subject && { name: data.subject }),
+                      ...(data.category && { category: data.category }),
+                      ...(data.difficulty && { difficulty: data.difficulty }),
+                    },
+                    academic: {
+                      ...note.academic,
+                      ...(data.university && { university: data.university }),
+                      ...(data.department && { department: data.department }),
+                      ...(data.semester && {
+                        semester: parseInt(data.semester),
                       }),
-                      subject: {
-                        ...note.subject,
-                        ...(data.subject && { name: data.subject }),
-                        ...(data.category && { category: data.category }),
-                        ...(data.difficulty && { difficulty: data.difficulty }),
-                      },
-                      academic: {
-                        ...note.academic,
-                        ...(data.university && { university: data.university }),
-                        ...(data.department && { department: data.department }),
-                        ...(data.semester && {
-                          semester: parseInt(data.semester),
-                        }),
-                        ...(data.graduationYear && {
-                          graduationYear: parseInt(data.graduationYear),
-                        }),
-                        ...(data.degree && { degree: data.degree }),
-                      },
-                      ...(data.visibility && { visibility: data.visibility }),
-                      ...(data.tags && {
-                        tags:
-                          typeof data.tags === 'string'
-                            ? data.tags
-                                .split(',')
-                                .map(tag => tag.trim())
-                                .filter(Boolean)
-                            : data.tags,
+                      ...(data.graduationYear && {
+                        graduationYear: parseInt(data.graduationYear),
                       }),
-                    }
+                      ...(data.degree && { degree: data.degree }),
+                    },
+                    ...(data.visibility && { visibility: data.visibility }),
+                    ...(data.tags && {
+                      tags:
+                        typeof data.tags === 'string'
+                          ? data.tags
+                            .split(',')
+                            .map(tag => tag.trim())
+                            .filter(Boolean)
+                          : data.tags,
+                    }),
+                  }
                   : note
               ),
             },
@@ -561,13 +562,13 @@ export const useLikeNote = () => {
         notes.map(note =>
           note._id === noteId
             ? {
-                ...note,
-                stats: {
-                  ...note.stats,
-                  likes: data.data.likesCount,
-                  isLiked: true,
-                },
-              }
+              ...note,
+              stats: {
+                ...note.stats,
+                likes: data.data.likesCount,
+                isLiked: true,
+              },
+            }
             : note
         )
 
@@ -630,13 +631,13 @@ export const useUnlikeNote = () => {
         notes.map(note =>
           note._id === noteId
             ? {
-                ...note,
-                stats: {
-                  ...note.stats,
-                  likes: data.data.likesCount,
-                  isLiked: false,
-                },
-              }
+              ...note,
+              stats: {
+                ...note.stats,
+                likes: data.data.likesCount,
+                isLiked: false,
+              },
+            }
             : note
         )
 
@@ -1613,6 +1614,277 @@ export const useGetGoogleDriveFolderStructure = (enabled = true) => {
       // If token is invalid, remove it from localStorage
       if (error?.needsReauth) {
         localStorage.removeItem('googleDriveToken')
+      }
+    },
+  })
+}
+
+// ========== NOTIFICATION QUERIES ==========
+
+// Query to get user notifications with pagination
+export const useGetNotifications = (options = {}) => {
+  const { page = 1, limit = 20, unreadOnly = false } = options
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_NOTIFICATIONS(page, limit, unreadOnly),
+    queryFn: () => notificationAPI.getUserNotifications({ page, limit, unreadOnly }),
+    enabled: isLoggedIn,
+    staleTime: 30 * 1000, // 30 seconds - notifications need to be fresh
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    keepPreviousData: true,
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: 60 * 1000, // Auto-refetch every 60 seconds
+  })
+}
+
+// Query to get unread notification count
+export const useGetUnreadCount = () => {
+  const { user: clerkUser } = useUser()
+  const isLoggedIn = Boolean(clerkUser)
+
+  return useQuery({
+    queryKey: QUERY_KEYS.GET_UNREAD_COUNT,
+    queryFn: notificationAPI.getUnreadCount,
+    enabled: isLoggedIn,
+    staleTime: 30 * 1000, // 30 seconds - count needs to be very fresh
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: true,
+    refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
+  })
+}
+
+// ========== NOTIFICATION MUTATIONS ==========
+
+// Mutation to mark notification as read
+export const useMarkNotificationAsRead = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.MARK_NOTIFICATION_READ,
+    mutationFn: notificationAPI.markNotificationAsRead,
+    onMutate: async (notificationId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot previous values
+      const previousNotifications = queryClient.getQueriesData({
+        queryKey: ['notifications', 'list']
+      })
+      const previousCount = queryClient.getQueryData(QUERY_KEYS.GET_UNREAD_COUNT)
+
+      // Optimistically update notifications list
+      queryClient.setQueriesData(
+        { queryKey: ['notifications', 'list'] },
+        (old) => {
+          if (!old?.data?.notifications) return old
+
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              notifications: old.data.notifications.map((notif) =>
+                notif._id === notificationId
+                  ? { ...notif, isRead: true, readAt: new Date().toISOString() }
+                  : notif
+              ),
+              pagination: {
+                ...old.data.pagination,
+                unreadCount: Math.max(0, (old.data.pagination.unreadCount || 0) - 1),
+              },
+            },
+          }
+        }
+      )
+
+      // Optimistically update unread count
+      queryClient.setQueryData(QUERY_KEYS.GET_UNREAD_COUNT, (old) => {
+        if (!old?.data?.unreadCount) return old
+        return {
+          ...old,
+          data: {
+            unreadCount: Math.max(0, old.data.unreadCount - 1),
+          },
+        }
+      })
+
+      return { previousNotifications, previousCount }
+    },
+    onSuccess: () => {
+      // Invalidate queries to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    onError: (error, notificationId, context) => {
+      console.error('Failed to mark notification as read:', error)
+
+      // Rollback optimistic updates
+      if (context?.previousNotifications) {
+        context.previousNotifications.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+      if (context?.previousCount) {
+        queryClient.setQueryData(QUERY_KEYS.GET_UNREAD_COUNT, context.previousCount)
+      }
+    },
+  })
+}
+
+// Mutation to mark all notifications as read
+export const useMarkAllAsRead = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.MARK_ALL_READ,
+    mutationFn: notificationAPI.markAllAsRead,
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot previous values
+      const previousNotifications = queryClient.getQueriesData({
+        queryKey: ['notifications', 'list']
+      })
+      const previousCount = queryClient.getQueryData(QUERY_KEYS.GET_UNREAD_COUNT)
+
+      // Optimistically update all notifications as read
+      queryClient.setQueriesData(
+        { queryKey: ['notifications', 'list'] },
+        (old) => {
+          if (!old?.data?.notifications) return old
+
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              notifications: old.data.notifications.map((notif) => ({
+                ...notif,
+                isRead: true,
+                readAt: notif.readAt || new Date().toISOString(),
+              })),
+              pagination: {
+                ...old.data.pagination,
+                unreadCount: 0,
+              },
+            },
+          }
+        }
+      )
+
+      // Optimistically update unread count to 0
+      queryClient.setQueryData(QUERY_KEYS.GET_UNREAD_COUNT, {
+        success: true,
+        data: { unreadCount: 0 },
+      })
+
+      return { previousNotifications, previousCount }
+    },
+    onSuccess: () => {
+      // Invalidate queries to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    onError: (error, variables, context) => {
+      console.error('Failed to mark all as read:', error)
+
+      // Rollback optimistic updates
+      if (context?.previousNotifications) {
+        context.previousNotifications.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+      if (context?.previousCount) {
+        queryClient.setQueryData(QUERY_KEYS.GET_UNREAD_COUNT, context.previousCount)
+      }
+    },
+  })
+}
+
+// Mutation to delete notification
+export const useDeleteNotification = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: QUERY_KEYS.DELETE_NOTIFICATION,
+    mutationFn: notificationAPI.deleteNotification,
+    onMutate: async (notificationId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot previous values
+      const previousNotifications = queryClient.getQueriesData({
+        queryKey: ['notifications', 'list']
+      })
+      const previousCount = queryClient.getQueryData(QUERY_KEYS.GET_UNREAD_COUNT)
+
+      // Check if deleted notification was unread
+      let wasUnread = false
+      queryClient.getQueriesData({ queryKey: ['notifications', 'list'] }).forEach(([, data]) => {
+        if (data?.data?.notifications) {
+          const notification = data.data.notifications.find(n => n._id === notificationId)
+          if (notification && !notification.isRead) {
+            wasUnread = true
+          }
+        }
+      })
+
+      // Optimistically remove notification from list
+      queryClient.setQueriesData(
+        { queryKey: ['notifications', 'list'] },
+        (old) => {
+          if (!old?.data?.notifications) return old
+
+          const filteredNotifications = old.data.notifications.filter(
+            (notif) => notif._id !== notificationId
+          )
+
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              notifications: filteredNotifications,
+              pagination: {
+                ...old.data.pagination,
+                totalNotifications: Math.max(0, old.data.pagination.totalNotifications - 1),
+                unreadCount: wasUnread
+                  ? Math.max(0, (old.data.pagination.unreadCount || 0) - 1)
+                  : old.data.pagination.unreadCount,
+              },
+            },
+          }
+        }
+      )
+
+      // Update unread count if notification was unread
+      if (wasUnread) {
+        queryClient.setQueryData(QUERY_KEYS.GET_UNREAD_COUNT, (old) => {
+          if (!old?.data?.unreadCount) return old
+          return {
+            ...old,
+            data: {
+              unreadCount: Math.max(0, old.data.unreadCount - 1),
+            },
+          }
+        })
+      }
+
+      return { previousNotifications, previousCount, wasUnread }
+    },
+    onSuccess: () => {
+      // Invalidate queries to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    onError: (error, notificationId, context) => {
+      console.error('Failed to delete notification:', error)
+
+      // Rollback optimistic updates
+      if (context?.previousNotifications) {
+        context.previousNotifications.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+      if (context?.previousCount) {
+        queryClient.setQueryData(QUERY_KEYS.GET_UNREAD_COUNT, context.previousCount)
       }
     },
   })
