@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { useAuth, SignInButton } from '@clerk/clerk-react'
 import { useAccessSharedWishlist } from '../lib/react-query/queriesAndMutation.js'
 import {
   Card,
@@ -61,12 +61,6 @@ const SharedWishlistPage = () => {
       return () => clearTimeout(timer)
     }
   }, [isLoaded, isSignedIn, sharedWishlistData])
-
-  const handleSignIn = () => {
-    // Store current URL to redirect back after sign in
-    sessionStorage.setItem('redirectAfterAuth', window.location.href)
-    navigate('/sign-in')
-  }
 
   const handleBack = () => {
     navigate(-1)
@@ -168,13 +162,12 @@ const SharedWishlistPage = () => {
                     Go Back
                   </Button>
                   {requiresAuth || isPrivate ? (
-                    <Button
-                      onClick={handleSignIn}
-                      className='flex-1 bg-blue-600 hover:bg-blue-700'
-                    >
-                      <CheckCircle className='w-4 h-4 mr-2' />
-                      Sign In
-                    </Button>
+                    <SignInButton mode='modal'>
+                      <Button className='flex-1 bg-blue-600 hover:bg-blue-700'>
+                        <CheckCircle className='w-4 h-4 mr-2' />
+                        Sign In
+                      </Button>
+                    </SignInButton>
                   ) : (
                     <Button
                       onClick={() => navigate('/')}
@@ -200,31 +193,36 @@ const SharedWishlistPage = () => {
     <div className='min-h-screen bg-gray-50'>
       {/* Header with authentication status */}
       <div className='bg-white border-b'>
-        <div className='container mx-auto px-4 max-w-6xl py-4'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-3'>
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={handleBack}
-                className='mr-2'
+        <div className='container mx-auto px-4 sm:px-6 max-w-6xl py-3 sm:py-4'>
+          <div className='flex items-center justify-between gap-2'>
+            <div className='flex items-center gap-2 sm:gap-3 min-w-0 flex-1'>
+              <Link
+                to='/'
+                className='text-xl sm:text-2xl font-bold text-gray-900 hover:text-gray-700 transition-colors whitespace-nowrap'
               >
-                <ArrowLeft className='h-4 w-4 mr-2' />
-                Back
-              </Button>
-              <FolderOpen className='h-6 w-6 text-purple-600' />
-              <span className='font-medium text-lg'>Shared Wishlist</span>
+                Notes Doo
+              </Link>
+              <div className='hidden sm:block w-px h-6 bg-gray-300'></div>
+              <div className='hidden sm:flex items-center gap-2'>
+                <FolderOpen className='h-5 w-5 text-purple-600 flex-shrink-0' />
+                <span className='font-medium text-lg'>Shared Wishlist</span>
+              </div>
             </div>
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-2 sm:gap-3 flex-shrink-0'>
               {isSignedIn ? (
                 <div className='flex items-center gap-2'>
                   <CheckCircle className='h-4 w-4 text-green-600' />
-                  <span className='text-sm text-green-600'>Authenticated</span>
+                  <span className='hidden sm:inline text-sm text-green-600'>Authenticated</span>
                 </div>
               ) : (
-                <Button onClick={handleSignIn} size='sm'>
-                  Sign In
-                </Button>
+                <SignInButton mode='modal'>
+                  <Button
+                    size='sm'
+                    className='bg-gray-900 hover:bg-black text-white text-xs sm:text-sm px-3 sm:px-4'
+                  >
+                    Sign In
+                  </Button>
+                </SignInButton>
               )}
             </div>
           </div>
@@ -237,56 +235,56 @@ const SharedWishlistPage = () => {
           <div className='lg:col-span-1 space-y-6'>
             {/* Wishlist Info */}
             <Card>
-              <CardHeader>
-                <div className='flex items-center gap-3'>
-                  <div
-                    className={`w-4 h-4 rounded-full`}
-                    style={{
-                      backgroundColor: `var(--${wishlist.color || 'purple'}-500)`,
-                    }}
-                  />
-                  <CardTitle className='text-lg'>{wishlist.name}</CardTitle>
+              <CardHeader className='pb-3'>
+                <div className='flex items-center gap-2.5'>
+                  <CardTitle className='text-base font-semibold truncate'>
+                    {wishlist.name}
+                  </CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className='pt-0'>
                 {wishlist.description && (
-                  <p className='text-sm text-muted-foreground mb-4'>
+                  <p className='text-sm text-muted-foreground mb-4 line-clamp-3'>
                     {wishlist.description}
                   </p>
                 )}
 
-                <div className='space-y-3 text-sm'>
-                  <div className='flex items-center justify-between'>
-                    <span className='text-muted-foreground'>Visibility:</span>
+                <div className='space-y-2.5 text-sm'>
+                  <div className='flex items-center justify-between py-1'>
+                    <span className='text-muted-foreground font-medium'>Visibility</span>
                     <Badge
                       variant={wishlist.isPrivate ? 'secondary' : 'default'}
+                      className='text-xs'
                     >
                       {wishlist.isPrivate ? 'Private' : 'Public'}
                     </Badge>
                   </div>
 
-                  <div className='flex items-center justify-between'>
-                    <span className='text-muted-foreground'>Notes:</span>
-                    <span className='font-medium'>{wishlist.notesCount}</span>
+                  <div className='flex items-center justify-between py-1'>
+                    <span className='text-muted-foreground font-medium'>Notes</span>
+                    <span className='font-semibold text-foreground'>{wishlist.notesCount}</span>
                   </div>
 
                   {accessInfo.hiddenNotesCount > 0 && (
-                    <div className='flex items-center justify-between'>
-                      <span className='text-muted-foreground'>Hidden:</span>
-                      <div className='flex items-center gap-1'>
-                        <EyeOff className='h-3 w-3 text-muted-foreground' />
-                        <span className='text-xs'>
+                    <div className='flex items-center justify-between py-1'>
+                      <span className='text-muted-foreground font-medium'>Hidden</span>
+                      <div className='flex items-center gap-1.5'>
+                        <EyeOff className='h-3.5 w-3.5 text-muted-foreground' />
+                        <span className='text-xs font-medium'>
                           {accessInfo.hiddenNotesCount} private
                         </span>
                       </div>
                     </div>
                   )}
 
-                  <div className='flex items-center gap-2 pt-2'>
-                    <Calendar className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground'>
-                      Created{' '}
-                      {new Date(wishlist.createdAt).toLocaleDateString()}
+                  <div className='flex items-center gap-2 pt-1.5 border-t mt-2.5'>
+                    <Calendar className='h-3.5 w-3.5 text-muted-foreground flex-shrink-0' />
+                    <span className='text-xs text-muted-foreground'>
+                      {new Date(wishlist.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
                     </span>
                   </div>
                 </div>
@@ -330,12 +328,11 @@ const SharedWishlistPage = () => {
                       Sign in to see {accessInfo.hiddenNotesCount} more private
                       notes in this wishlist.
                     </p>
-                    <Button
-                      onClick={handleSignIn}
-                      className='w-full bg-purple-600 hover:bg-purple-700'
-                    >
-                      Sign In to See All Notes
-                    </Button>
+                    <SignInButton mode='modal'>
+                      <Button className='w-full bg-purple-600 hover:bg-purple-700'>
+                        Sign In to See All Notes
+                      </Button>
+                    </SignInButton>
                   </CardContent>
                 </Card>
               )}
@@ -385,12 +382,11 @@ const SharedWishlistPage = () => {
                       : "This wishlist doesn't contain any notes yet."}
                   </p>
                   {accessInfo.hiddenNotesCount > 0 && !isSignedIn && (
-                    <Button
-                      onClick={handleSignIn}
-                      className='bg-purple-600 hover:bg-purple-700'
-                    >
-                      Sign In to See Private Notes
-                    </Button>
+                    <SignInButton mode='modal'>
+                      <Button className='bg-purple-600 hover:bg-purple-700'>
+                        Sign In to See Private Notes
+                      </Button>
+                    </SignInButton>
                   )}
                 </CardContent>
               </Card>

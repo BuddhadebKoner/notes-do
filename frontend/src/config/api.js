@@ -67,6 +67,13 @@ export const API_ENDPOINTS = {
     ACCESS_WISHLIST: '/wishlist-share/wishlists',
     GET_ANALYTICS: '/wishlist-share/wishlists',
   },
+  NOTIFICATIONS: {
+    GET_ALL: '/notifications',
+    UNREAD_COUNT: '/notifications/unread-count',
+    MARK_READ: '/notifications',
+    MARK_ALL_READ: '/notifications/mark-all-read',
+    DELETE: '/notifications',
+  },
 }
 
 // Global token refresh function reference

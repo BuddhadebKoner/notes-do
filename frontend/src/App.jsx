@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { Toaster as SonnerToaster } from 'sonner'
 import ApiAuthProvider from './context/ApiAuthProvider'
 import RootLayout from './_root/RootLayout'
 import HomePage from './_root/pages/HomePage'
@@ -20,6 +21,7 @@ import PublicProfile from './_root/pages/PublicProfile'
 import SharePage from './pages/SharePage'
 import SharedWishlistPage from './pages/SharedWishlistPage'
 import Drive from './_root/_profile/components/Drive'
+import NotificationsPage from './_root/pages/NotificationsPage'
 
 function App() {
   return (
@@ -30,6 +32,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path='notes' element={<NotesFeedPage />} />
             <Route path='buy-notes' element={<ComingSoon />} />
+            <Route path='notifications' element={<NotificationsPage />} />
             <Route path='profile' element={<ProfileLayout />}>
               <Route index element={<ProfileOverview />} />
               <Route path='uploaded' element={<UploadedNotes />} />
@@ -72,6 +75,19 @@ function App() {
                 primary: '#EF4444',
                 secondary: '#fff',
               },
+            },
+          }}
+        />
+        {/* Sonner Toaster for modern toast notifications */}
+        <SonnerToaster
+          position='top-right'
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: '#fff',
+              color: '#333',
+              border: '1px solid #e5e7eb',
             },
           }}
         />

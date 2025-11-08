@@ -1,19 +1,11 @@
 import api, { API_ENDPOINTS } from '../config/api.js'
 
-// Helper function to create authenticated request config
-const getAuthConfig = async () => {
-  // Token is now managed automatically by the request interceptor
-  // No need to manually set headers here
-  return {}
-}
-
 // Auth API services
 export const authAPI = {
   // Check if user is logged in
   checkLogin: async () => {
     try {
-      const config = await getAuthConfig()
-      const response = await api.get(API_ENDPOINTS.AUTH.CHECK_LOGIN, config)
+      const response = await api.get(API_ENDPOINTS.AUTH.CHECK_LOGIN)
       return response.data
     } catch (error) {
       throw error.response?.data || error.message
@@ -23,11 +15,9 @@ export const authAPI = {
   // Create user profile
   createUser: async userData => {
     try {
-      const config = await getAuthConfig()
       const response = await api.post(
         API_ENDPOINTS.AUTH.CREATE_USER,
-        userData,
-        config
+        userData
       )
       return response.data
     } catch (error) {
@@ -41,8 +31,8 @@ export const profileAPI = {
   // Get complete user profile
   getProfile: async () => {
     try {
-      const config = await getAuthConfig()
-      const response = await api.get(API_ENDPOINTS.PROFILE.GET_PROFILE, config)
+
+      const response = await api.get(API_ENDPOINTS.PROFILE.GET_PROFILE)
       return response.data
     } catch (error) {
       throw error.response?.data || error.message
@@ -57,10 +47,10 @@ export const profileAPI = {
     sortOrder = 'desc'
   ) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(API_ENDPOINTS.PROFILE.UPLOADED_NOTES, {
         params: { page, limit, sortBy, sortOrder },
-        ...config,
+
       })
       return response.data
     } catch (error) {
@@ -71,10 +61,10 @@ export const profileAPI = {
   // Get user's wishlist
   getWishlist: async (page = 1, limit = 10) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(API_ENDPOINTS.PROFILE.WISHLIST, {
         params: { page, limit },
-        ...config,
+
       })
       return response.data
     } catch (error) {
@@ -85,10 +75,10 @@ export const profileAPI = {
   // Get user's favorites
   getFavorites: async (page = 1, limit = 10) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(API_ENDPOINTS.PROFILE.FAVORITES, {
         params: { page, limit },
-        ...config,
+
       })
       return response.data
     } catch (error) {
@@ -99,8 +89,8 @@ export const profileAPI = {
   // Get user's followers
   getFollowers: async () => {
     try {
-      const config = await getAuthConfig()
-      const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWERS, config)
+
+      const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWERS)
       return response.data
     } catch (error) {
       throw error.response?.data || error.message
@@ -110,8 +100,8 @@ export const profileAPI = {
   // Get user's following
   getFollowing: async () => {
     try {
-      const config = await getAuthConfig()
-      const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWING, config)
+
+      const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWING)
       return response.data
     } catch (error) {
       throw error.response?.data || error.message
@@ -121,8 +111,8 @@ export const profileAPI = {
   // Get user activity statistics
   getActivityStats: async () => {
     try {
-      const config = await getAuthConfig()
-      const response = await api.get(API_ENDPOINTS.PROFILE.STATS, config)
+
+      const response = await api.get(API_ENDPOINTS.PROFILE.STATS)
       return response.data
     } catch (error) {
       throw error.response?.data || error.message
@@ -132,11 +122,9 @@ export const profileAPI = {
   // Update user profile
   updateProfile: async profileData => {
     try {
-      const config = await getAuthConfig()
       const response = await api.put(
         API_ENDPOINTS.PROFILE.UPDATE_PROFILE,
-        profileData,
-        config
+        profileData
       )
       return response.data
     } catch (error) {
@@ -147,11 +135,9 @@ export const profileAPI = {
   // Update note details (excluding file)
   updateNoteDetails: async (noteId, noteData) => {
     try {
-      const config = await getAuthConfig()
       const response = await api.put(
         `/profile/note/${noteId}`,
-        noteData,
-        config
+        noteData
       )
       return response.data
     } catch (error) {
@@ -223,11 +209,9 @@ export const profileAPI = {
   // Follow a user by username
   followUser: async username => {
     try {
-      const config = await getAuthConfig()
       const response = await api.post(
         `${API_ENDPOINTS.PROFILE.FOLLOW_USER}/${username}`,
-        {},
-        config
+        {}
       )
       return response.data
     } catch (error) {
@@ -238,10 +222,8 @@ export const profileAPI = {
   // Unfollow a user by username
   unfollowUser: async username => {
     try {
-      const config = await getAuthConfig()
       const response = await api.delete(
-        `${API_ENDPOINTS.PROFILE.UNFOLLOW_USER}/${username}`,
-        config
+        `${API_ENDPOINTS.PROFILE.UNFOLLOW_USER}/${username}`
       )
       return response.data
     } catch (error) {
@@ -260,7 +242,6 @@ export const notesAPI = {
           'Content-Type': 'multipart/form-data',
         },
         timeout: 180000, // 3 minutes timeout for large file uploads
-        ...(await getAuthConfig()),
         onUploadProgress: progressEvent => {
           if (onProgress && progressEvent.total) {
             const percentCompleted = Math.round(
@@ -327,7 +308,7 @@ export const notesAPI = {
   // Like a note
   likeNote: async noteId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         `${API_ENDPOINTS.NOTES.LIKE}/${noteId}/like`,
         {},
@@ -342,7 +323,7 @@ export const notesAPI = {
   // Unlike a note
   unlikeNote: async noteId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.delete(
         `${API_ENDPOINTS.NOTES.UNLIKE}/${noteId}/like`,
         config
@@ -356,11 +337,11 @@ export const notesAPI = {
   // Delete a note
   deleteNote: async (noteId, googleDriveToken = null) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.delete(
         `${API_ENDPOINTS.NOTES.DELETE}/${noteId}`,
         {
-          ...config,
+
           data: googleDriveToken ? { googleDriveToken } : {},
         }
       )
@@ -406,7 +387,7 @@ export const apiHelpers = {
         method,
         url,
         data,
-        ...config,
+
       })
       return response.data
     } catch (error) {
@@ -420,7 +401,7 @@ export const commentsAPI = {
   // Get comments for a note with pagination
   getComments: async (noteId, page = 1, limit = 10) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(
         `${API_ENDPOINTS.COMMENTS.GET_COMMENTS}/${noteId}?page=${page}&limit=${limit}`,
         config
@@ -434,7 +415,7 @@ export const commentsAPI = {
   // Add a new comment to a note
   addComment: async (noteId, content) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         `${API_ENDPOINTS.COMMENTS.ADD_COMMENT}/${noteId}`,
         { content },
@@ -449,7 +430,7 @@ export const commentsAPI = {
   // Like/Unlike a comment
   toggleCommentLike: async (noteId, commentId) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.put(
         `${API_ENDPOINTS.COMMENTS.LIKE_COMMENT}/${noteId}/${commentId}/like`,
         {},
@@ -464,7 +445,7 @@ export const commentsAPI = {
   // Add a reply to a comment
   addReply: async (noteId, commentId, content) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         `${API_ENDPOINTS.COMMENTS.ADD_REPLY}/${noteId}/${commentId}/reply`,
         { content },
@@ -482,7 +463,7 @@ export const shareAPI = {
   // Create share link for a note
   createShareLink: async ({ noteId, expiryDays = 30 }) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         `${API_ENDPOINTS.SHARE.CREATE_LINK}/${noteId}/share`,
         { expiryDays },
@@ -497,7 +478,7 @@ export const shareAPI = {
   // Get share info for a note
   getShareInfo: async noteId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(
         `${API_ENDPOINTS.SHARE.GET_INFO}/${noteId}/share-info`,
         config
@@ -511,7 +492,7 @@ export const shareAPI = {
   // Disable share link for a note
   disableShareLink: async noteId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.delete(
         `${API_ENDPOINTS.SHARE.DISABLE_LINK}/${noteId}/share`,
         config
@@ -539,7 +520,7 @@ export const shareAPI = {
   // Get share analytics for a note
   getShareAnalytics: async noteId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(
         `${API_ENDPOINTS.SHARE.GET_ANALYTICS}/${noteId}/analytics`,
         config
@@ -556,7 +537,7 @@ export const wishlistShareAPI = {
   // Create share link for a wishlist
   createWishlistShareLink: async ({ wishlistId, expiryDays = 30 }) => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         `${API_ENDPOINTS.WISHLIST_SHARE.CREATE_LINK}/${wishlistId}/share`,
         { expiryDays },
@@ -571,7 +552,7 @@ export const wishlistShareAPI = {
   // Get share info for a wishlist
   getWishlistShareInfo: async wishlistId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(
         `${API_ENDPOINTS.WISHLIST_SHARE.GET_INFO}/${wishlistId}/share-info`,
         config
@@ -585,7 +566,7 @@ export const wishlistShareAPI = {
   // Disable share link for a wishlist
   disableWishlistShareLink: async wishlistId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.delete(
         `${API_ENDPOINTS.WISHLIST_SHARE.DISABLE_LINK}/${wishlistId}/share`,
         config
@@ -613,7 +594,7 @@ export const wishlistShareAPI = {
   // Get share analytics for a wishlist
   getWishlistShareAnalytics: async wishlistId => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.get(
         `${API_ENDPOINTS.WISHLIST_SHARE.GET_ANALYTICS}/${wishlistId}/analytics`,
         config
@@ -630,7 +611,7 @@ export const googleAPI = {
   // Get Google Drive account information
   getAccountInfo: async googleDriveToken => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         API_ENDPOINTS.GOOGLE.ACCOUNT_INFO,
         { googleDriveToken },
@@ -645,7 +626,7 @@ export const googleAPI = {
   // Get Google Drive folder structure
   getFolderStructure: async googleDriveToken => {
     try {
-      const config = await getAuthConfig()
+
       const response = await api.post(
         API_ENDPOINTS.GOOGLE.FOLDER_STRUCTURE,
         { googleDriveToken },
@@ -658,6 +639,9 @@ export const googleAPI = {
   },
 }
 
+// Import notification API
+import notificationAPI from './notificationAPI.js'
+
 export default {
   auth: authAPI,
   profile: profileAPI,
@@ -667,4 +651,8 @@ export default {
   wishlistShare: wishlistShareAPI,
   google: googleAPI,
   helpers: apiHelpers,
+  notifications: notificationAPI,
 }
+
+// Also export notificationAPI as named export
+export { notificationAPI }

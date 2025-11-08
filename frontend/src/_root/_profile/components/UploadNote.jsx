@@ -406,12 +406,11 @@ const UploadNote = () => {
                                   onChange(file) // Update form state
                                 }
                               }}
-                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                                !driveStatus.canUpload
+                              className={`file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${!driveStatus.canUpload
                                   ? 'file:bg-gray-100 file:text-gray-400 cursor-not-allowed opacity-50'
                                   : 'file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-                              }`}
-                              // Don't spread field props for file inputs
+                                }`}
+                            // Don't spread field props for file inputs
                             />
                             {value && (
                               <div className='space-y-1'>
@@ -807,29 +806,22 @@ const UploadNote = () => {
 
                         <div className='lg:col-span-1'>
                           <FormLabel>Graduation Year</FormLabel>
-                          <Select
+                          <SearchableSelect
+                            options={[
+                              { label: 'Any Graduation Year', value: '' },
+                              ...GRADUATION_YEARS.map(year => ({
+                                label: year.label,
+                                value: year.value,
+                              })),
+                            ]}
+                            value={form.watch('graduationYear') || ''}
                             onValueChange={value =>
-                              form.setValue(
-                                'graduationYear',
-                                value === 'all' ? '' : value
-                              )
+                              form.setValue('graduationYear', value)
                             }
-                            value={form.watch('graduationYear') || 'all'}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder='Any Graduation Year' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value='all'>
-                                Any Graduation Year
-                              </SelectItem>
-                              {GRADUATION_YEARS.map(year => (
-                                <SelectItem key={year.value} value={year.value}>
-                                  {year.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            placeholder='Any Graduation Year'
+                            searchPlaceholder='Search years...'
+                            emptyText='No year found.'
+                          />
                           <FormDescription className='text-xs'>
                             Leave empty for all graduation years
                           </FormDescription>
@@ -976,7 +968,7 @@ const UploadNote = () => {
                       {/* View PDF Button */}
                       {uploadResult.file?.webViewLink &&
                         uploadResult.file.webViewLink !==
-                          'https://drive.google.com/drive/my-drive' && (
+                        'https://drive.google.com/drive/my-drive' && (
                           <div className='mt-4'>
                             <Button
                               asChild

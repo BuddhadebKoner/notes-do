@@ -137,20 +137,34 @@ const NoteDetails = () => {
           text: noteData.description,
           url: window.location.href,
         })
+        // Show success toast after successful share
+        toast.success('Note shared successfully!', {
+          description: 'Thanks for sharing this note',
+          duration: 3000,
+        })
       } catch (error) {
         // User canceled sharing
         if (error.name !== 'AbortError') {
           console.error('Share error:', error)
+          toast.error('Failed to share', {
+            description: 'Please try again',
+          })
         }
       }
     } else {
       // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(window.location.href)
-        toast.success('Link copied to clipboard!')
+        toast.success('Link copied to clipboard!', {
+          description: 'You can now paste it anywhere',
+          duration: 3000,
+          icon: '📋',
+        })
       } catch (error) {
         console.error('Copy to clipboard failed:', error)
-        toast.error('Failed to copy link')
+        toast.error('Failed to copy link', {
+          description: 'Please try again or copy manually',
+        })
       }
     }
   }
@@ -426,68 +440,103 @@ const NoteDetails = () => {
 
   // Main content with access
   return (
-    <div className='min-h-screen bg-gray-50 p-4'>
-      <div className='max-w-7xl mx-auto space-y-6'>
-        {/* Header */}
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-4'>
-            <Button variant='outline' onClick={handleBack}>
-              <ArrowLeft className='w-4 h-4 mr-2' />
-              Back
+    <div className='min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6'>
+      <div className='max-w-7xl mx-auto space-y-4 sm:space-y-6'>
+        {/* Header - Premium Responsive Design */}
+        <div className='space-y-3 sm:space-y-4'>
+          {/* Action Bar - Always on Top */}
+          <div className='flex items-center justify-between gap-3'>
+            {/* Back Button - Icon only */}
+            <Button
+              variant='outline'
+              size='default'
+              onClick={handleBack}
+              className='shadow-sm hover:shadow-md transition-all hover:scale-105 active:scale-95'
+            >
+              <ArrowLeft className='w-4 h-4' />
             </Button>
-            <div>
-              <h1 className='text-2xl font-bold'>{noteData.title}</h1>
-              <p className='text-gray-600'>Note Details</p>
+
+            {/* Action Buttons Group */}
+            <div className='flex items-center gap-2'>
+              {/* Like Button */}
+              {noteData.permissions.canLike && isSignedIn && (
+                <Button
+                  size='default'
+                  variant={noteData.social?.isLiked ? 'default' : 'outline'}
+                  onClick={handleLike}
+                  disabled={
+                    likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
+                  }
+                  className={`shadow-sm hover:shadow-md transition-all hover:scale-105 active:scale-95 ${noteData.social?.isLiked
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'border-red-200 text-red-600 hover:bg-red-50'
+                    }`}
+                >
+                  <Heart
+                    className={`w-4 h-4 ${noteData.social?.isLiked ? 'fill-current' : ''
+                      } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
+                  />
+                </Button>
+              )}
+
+              {/* Download Button - Icon only */}
+              {noteData.permissions.canDownload && (
+                <Button
+                  size='default'
+                  onClick={handleDownload}
+                  disabled={actionLoading.download}
+                  className='shadow-sm hover:shadow-md transition-all hover:scale-105 active:scale-95 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
+                >
+                  <Download
+                    className={`w-4 h-4 ${actionLoading.download ? 'animate-bounce' : ''}`}
+                  />
+                </Button>
+              )}
+
+              {/* Share Button - Icon only */}
+              <Button
+                size='default'
+                variant='outline'
+                onClick={handleShare}
+                className='shadow-sm hover:shadow-md transition-all hover:scale-105 active:scale-95'
+              >
+                <Share className='w-4 h-4' />
+              </Button>
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className='flex items-center gap-2'>
-            {/* Like button - only show if user can like */}
-            {noteData.permissions.canLike && isSignedIn && (
-              <Button
-                variant={noteData.social?.isLiked ? 'default' : 'outline'}
-                onClick={handleLike}
-                disabled={
-                  likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
-                }
-                className={`${
-                  noteData.social?.isLiked
-                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                    : 'border-red-200 text-red-600 hover:bg-red-50'
-                }`}
-              >
-                <Heart
-                  className={`w-4 h-4 mr-2 ${
-                    noteData.social?.isLiked ? 'fill-current' : ''
-                  } ${likeNoteMutation.isLoading || unlikeNoteMutation.isLoading ? 'animate-pulse' : ''}`}
-                />
-                {likeNoteMutation.isLoading || unlikeNoteMutation.isLoading
-                  ? 'Processing...'
-                  : noteData.social?.isLiked
-                    ? 'Liked'
-                    : 'Like'}
-              </Button>
-            )}
+          {/* Title Section - Below buttons on mobile, inline on desktop */}
+          <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-shadow'>
+            <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
+              {/* Title and Subtitle */}
+              <div className='flex-1 min-w-0 space-y-1'>
+                <h1 className='text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 break-words leading-tight'>
+                  {noteData.title}
+                </h1>
+                <div className='flex items-center gap-2 text-xs sm:text-sm text-gray-500'>
+                  <FileText className='w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0' />
+                  <span>Note Details</span>
+                  <span className='hidden sm:inline'>•</span>
+                  <span className='hidden sm:inline'>{formatDate(noteData.uploadDate)}</span>
+                </div>
+              </div>
 
-            {/* Download button */}
-            {noteData.permissions.canDownload && (
-              <Button
-                onClick={handleDownload}
-                disabled={actionLoading.download}
-              >
-                <Download
-                  className={`w-4 h-4 mr-2 ${actionLoading.download ? 'animate-pulse' : ''}`}
-                />
-                {actionLoading.download ? 'Downloading...' : 'Download'}
-              </Button>
-            )}
-
-            {/* Share button */}
-            <Button variant='outline' onClick={handleShare}>
-              <Share className='w-4 h-4 mr-2' />
-              Share
-            </Button>
+              {/* Quick Stats - Desktop only */}
+              <div className='hidden lg:flex items-center gap-4 flex-shrink-0'>
+                <div className='flex items-center gap-1.5 text-sm text-gray-600'>
+                  <Eye className='w-4 h-4 text-blue-500' />
+                  <span className='font-medium'>{noteData.social?.views || 0}</span>
+                </div>
+                <div className='flex items-center gap-1.5 text-sm text-gray-600'>
+                  <Heart className='w-4 h-4 text-red-500' />
+                  <span className='font-medium'>{noteData.social?.likes || 0}</span>
+                </div>
+                <div className='flex items-center gap-1.5 text-sm text-gray-600'>
+                  <Download className='w-4 h-4 text-green-500' />
+                  <span className='font-medium'>{noteData.social?.downloads || 0}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

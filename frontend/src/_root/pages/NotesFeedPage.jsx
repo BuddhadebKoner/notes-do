@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select'
+import { SearchableSelect } from '../../components/ui/searchable-select'
 import { Badge } from '../../components/ui/badge'
 import {
   Pagination,
@@ -29,6 +30,13 @@ import {
   BookOpen,
   RefreshCw,
 } from 'lucide-react'
+import {
+  WEST_BENGAL_UNIVERSITIES,
+  BACHELOR_DEPARTMENTS,
+  MASTER_DEPARTMENTS,
+  ALL_DEPARTMENTS,
+  SEMESTER_OPTIONS,
+} from '../../constants/constantData'
 
 const NotesFeedPage = () => {
   // Filter and pagination state
@@ -376,34 +384,58 @@ const NotesFeedPage = () => {
             </Select>
 
             {/* University Filter */}
-            <Input
-              placeholder='University'
-              value={filters.university}
-              onChange={e => updateFilter('university', e.target.value)}
+            <SearchableSelect
+              options={[
+                { label: 'All Universities', value: '' },
+                ...WEST_BENGAL_UNIVERSITIES.map(university => ({
+                  label: university,
+                  value: university,
+                })),
+              ]}
+              value={filters.university || ''}
+              onValueChange={value => updateFilter('university', value)}
+              placeholder='All Universities'
+              searchPlaceholder='Search universities...'
+              emptyText='No university found.'
             />
 
             {/* Department Filter */}
-            <Input
-              placeholder='Department'
-              value={filters.department}
-              onChange={e => updateFilter('department', e.target.value)}
+            <SearchableSelect
+              options={[
+                { label: 'All Departments', value: '' },
+                ...ALL_DEPARTMENTS.map(dept => ({
+                  label: dept,
+                  value: dept,
+                })),
+              ]}
+              value={filters.department || ''}
+              onValueChange={value => updateFilter('department', value)}
+              placeholder='All Departments'
+              searchPlaceholder='Search departments...'
+              emptyText='No department found.'
             />
 
             {/* Subject Filter */}
             <Input
-              placeholder='Subject'
+              placeholder='Subject (type to filter)'
               value={filters.subject}
               onChange={e => updateFilter('subject', e.target.value)}
             />
 
             {/* Semester Filter */}
-            <Input
-              type='number'
-              placeholder='Semester'
-              min='1'
-              max='12'
-              value={filters.semester}
-              onChange={e => updateFilter('semester', e.target.value)}
+            <SearchableSelect
+              options={[
+                { label: 'All Semesters', value: '' },
+                ...SEMESTER_OPTIONS.map(sem => ({
+                  label: sem.label,
+                  value: sem.value,
+                })),
+              ]}
+              value={filters.semester || ''}
+              onValueChange={value => updateFilter('semester', value)}
+              placeholder='All Semesters'
+              searchPlaceholder='Search semester...'
+              emptyText='No semester found.'
             />
           </div>
 
@@ -456,38 +488,38 @@ const NotesFeedPage = () => {
                     value &&
                     value !== 'all'
                 )) && (
-                <div className='flex items-center gap-2 flex-wrap'>
-                  <span className='text-sm text-gray-600'>Active:</span>
-                  {searchTerm && (
-                    <Badge
-                      variant='secondary'
-                      className='text-xs cursor-pointer hover:bg-gray-200'
-                      onClick={() => clearSpecificFilter('search')}
-                    >
-                      search: "{searchTerm}" ×
-                    </Badge>
-                  )}
-                  {Object.entries(filters).map(([key, value]) => {
-                    if (
-                      key === 'sortBy' ||
-                      key === 'sortOrder' ||
-                      !value ||
-                      value === 'all'
-                    )
-                      return null
-                    return (
+                  <div className='flex items-center gap-2 flex-wrap'>
+                    <span className='text-sm text-gray-600'>Active:</span>
+                    {searchTerm && (
                       <Badge
-                        key={key}
                         variant='secondary'
                         className='text-xs cursor-pointer hover:bg-gray-200'
-                        onClick={() => clearSpecificFilter(key)}
+                        onClick={() => clearSpecificFilter('search')}
                       >
-                        {key}: {value} ×
+                        search: "{searchTerm}" ×
                       </Badge>
-                    )
-                  })}
-                </div>
-              )}
+                    )}
+                    {Object.entries(filters).map(([key, value]) => {
+                      if (
+                        key === 'sortBy' ||
+                        key === 'sortOrder' ||
+                        !value ||
+                        value === 'all'
+                      )
+                        return null
+                      return (
+                        <Badge
+                          key={key}
+                          variant='secondary'
+                          className='text-xs cursor-pointer hover:bg-gray-200'
+                          onClick={() => clearSpecificFilter(key)}
+                        >
+                          {key}: {value} ×
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                )}
 
               <Button
                 variant='outline'

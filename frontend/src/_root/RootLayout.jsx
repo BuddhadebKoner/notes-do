@@ -9,8 +9,9 @@ import {
 } from '@clerk/clerk-react'
 import { Button } from '../components/ui/button'
 import { AnimatedBuyButton } from '../components/ui/animated-buy-button'
-import { Upload, User } from 'lucide-react'
+import { Upload, User, Github } from 'lucide-react'
 import { cn } from '../lib/utils'
+import NotificationDropdown from '../components/notifications/NotificationDropdown'
 
 // Navigation Component
 const Navigation = () => {
@@ -41,6 +42,17 @@ const Navigation = () => {
 
           {/* Right side - Profile and Actions */}
           <div className='flex items-center space-x-3'>
+            {/* GitHub Repository Link */}
+            <a
+              href='https://github.com/BuddhadebKoner/notes-do'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100'
+              title='View on GitHub'
+            >
+              <Github className='h-5 w-5' />
+            </a>
+
             <SignedIn>
               {/* Upload Button - More Eye-catching */}
               <Button
@@ -54,6 +66,9 @@ const Navigation = () => {
                   {/* <span className='font-semibold'>Upload Note</span> */}
                 </Link>
               </Button>
+
+              {/* Notification Dropdown */}
+              <NotificationDropdown />
 
               {/* Profile Section - Connected Bar */}
               <div className='flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 transition-colors duration-200 rounded-lg px-3 py-2 border'>

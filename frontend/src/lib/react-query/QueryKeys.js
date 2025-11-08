@@ -103,4 +103,15 @@ export const QUERY_KEYS = {
   // Google Drive related queries
   GOOGLE_DRIVE_ACCOUNT_INFO: ['google-drive', 'account-info'],
   GOOGLE_DRIVE_FOLDER_STRUCTURE: ['google-drive', 'folder-structure'],
+
+  // Notification related queries
+  GET_NOTIFICATIONS: (page, limit, unreadOnly) => [
+    'notifications',
+    'list',
+    { page, limit, unreadOnly },
+  ],
+  GET_UNREAD_COUNT: ['notifications', 'unread-count'],
+  MARK_NOTIFICATION_READ: ['notifications', 'mark-read'],
+  MARK_ALL_READ: ['notifications', 'mark-all-read'],
+  DELETE_NOTIFICATION: ['notifications', 'delete'],
 }
