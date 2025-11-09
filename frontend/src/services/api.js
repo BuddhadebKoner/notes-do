@@ -31,7 +31,6 @@ export const profileAPI = {
   // Get complete user profile
   getProfile: async () => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.GET_PROFILE)
       return response.data
     } catch (error) {
@@ -47,10 +46,8 @@ export const profileAPI = {
     sortOrder = 'desc'
   ) => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.UPLOADED_NOTES, {
         params: { page, limit, sortBy, sortOrder },
-
       })
       return response.data
     } catch (error) {
@@ -61,10 +58,8 @@ export const profileAPI = {
   // Get user's wishlist
   getWishlist: async (page = 1, limit = 10) => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.WISHLIST, {
         params: { page, limit },
-
       })
       return response.data
     } catch (error) {
@@ -75,10 +70,8 @@ export const profileAPI = {
   // Get user's favorites
   getFavorites: async (page = 1, limit = 10) => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.FAVORITES, {
         params: { page, limit },
-
       })
       return response.data
     } catch (error) {
@@ -89,7 +82,6 @@ export const profileAPI = {
   // Get user's followers
   getFollowers: async () => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWERS)
       return response.data
     } catch (error) {
@@ -100,7 +92,6 @@ export const profileAPI = {
   // Get user's following
   getFollowing: async () => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.FOLLOWING)
       return response.data
     } catch (error) {
@@ -111,7 +102,6 @@ export const profileAPI = {
   // Get user activity statistics
   getActivityStats: async () => {
     try {
-
       const response = await api.get(API_ENDPOINTS.PROFILE.STATS)
       return response.data
     } catch (error) {
@@ -308,11 +298,9 @@ export const notesAPI = {
   // Like a note
   likeNote: async noteId => {
     try {
-
       const response = await api.post(
         `${API_ENDPOINTS.NOTES.LIKE}/${noteId}/like`,
-        {},
-        config
+        {}
       )
       return response.data
     } catch (error) {
@@ -323,10 +311,8 @@ export const notesAPI = {
   // Unlike a note
   unlikeNote: async noteId => {
     try {
-
       const response = await api.delete(
-        `${API_ENDPOINTS.NOTES.UNLIKE}/${noteId}/like`,
-        config
+        `${API_ENDPOINTS.NOTES.UNLIKE}/${noteId}/like`
       )
       return response.data
     } catch (error) {
@@ -337,11 +323,9 @@ export const notesAPI = {
   // Delete a note
   deleteNote: async (noteId, googleDriveToken = null) => {
     try {
-
       const response = await api.delete(
         `${API_ENDPOINTS.NOTES.DELETE}/${noteId}`,
         {
-
           data: googleDriveToken ? { googleDriveToken } : {},
         }
       )
@@ -387,7 +371,7 @@ export const apiHelpers = {
         method,
         url,
         data,
-
+        ...config,
       })
       return response.data
     } catch (error) {
@@ -401,10 +385,8 @@ export const commentsAPI = {
   // Get comments for a note with pagination
   getComments: async (noteId, page = 1, limit = 10) => {
     try {
-
       const response = await api.get(
-        `${API_ENDPOINTS.COMMENTS.GET_COMMENTS}/${noteId}?page=${page}&limit=${limit}`,
-        config
+        `${API_ENDPOINTS.COMMENTS.GET_COMMENTS}/${noteId}?page=${page}&limit=${limit}`
       )
       return response.data
     } catch (error) {
@@ -415,11 +397,9 @@ export const commentsAPI = {
   // Add a new comment to a note
   addComment: async (noteId, content) => {
     try {
-
       const response = await api.post(
         `${API_ENDPOINTS.COMMENTS.ADD_COMMENT}/${noteId}`,
-        { content },
-        config
+        { content }
       )
       return response.data
     } catch (error) {
@@ -430,11 +410,9 @@ export const commentsAPI = {
   // Like/Unlike a comment
   toggleCommentLike: async (noteId, commentId) => {
     try {
-
       const response = await api.put(
         `${API_ENDPOINTS.COMMENTS.LIKE_COMMENT}/${noteId}/${commentId}/like`,
-        {},
-        config
+        {}
       )
       return response.data
     } catch (error) {
@@ -445,11 +423,9 @@ export const commentsAPI = {
   // Add a reply to a comment
   addReply: async (noteId, commentId, content) => {
     try {
-
       const response = await api.post(
         `${API_ENDPOINTS.COMMENTS.ADD_REPLY}/${noteId}/${commentId}/reply`,
-        { content },
-        config
+        { content }
       )
       return response.data
     } catch (error) {
@@ -463,11 +439,9 @@ export const shareAPI = {
   // Create share link for a note
   createShareLink: async ({ noteId, expiryDays = 30 }) => {
     try {
-
       const response = await api.post(
         `${API_ENDPOINTS.SHARE.CREATE_LINK}/${noteId}/share`,
-        { expiryDays },
-        config
+        { expiryDays }
       )
       return response.data
     } catch (error) {
@@ -478,10 +452,8 @@ export const shareAPI = {
   // Get share info for a note
   getShareInfo: async noteId => {
     try {
-
       const response = await api.get(
-        `${API_ENDPOINTS.SHARE.GET_INFO}/${noteId}/share-info`,
-        config
+        `${API_ENDPOINTS.SHARE.GET_INFO}/${noteId}/share-info`
       )
       return response.data
     } catch (error) {
@@ -492,10 +464,8 @@ export const shareAPI = {
   // Disable share link for a note
   disableShareLink: async noteId => {
     try {
-
       const response = await api.delete(
-        `${API_ENDPOINTS.SHARE.DISABLE_LINK}/${noteId}/share`,
-        config
+        `${API_ENDPOINTS.SHARE.DISABLE_LINK}/${noteId}/share`
       )
       return response.data
     } catch (error) {
@@ -520,10 +490,8 @@ export const shareAPI = {
   // Get share analytics for a note
   getShareAnalytics: async noteId => {
     try {
-
       const response = await api.get(
-        `${API_ENDPOINTS.SHARE.GET_ANALYTICS}/${noteId}/analytics`,
-        config
+        `${API_ENDPOINTS.SHARE.GET_ANALYTICS}/${noteId}/analytics`
       )
       return response.data
     } catch (error) {
@@ -537,11 +505,9 @@ export const wishlistShareAPI = {
   // Create share link for a wishlist
   createWishlistShareLink: async ({ wishlistId, expiryDays = 30 }) => {
     try {
-
       const response = await api.post(
         `${API_ENDPOINTS.WISHLIST_SHARE.CREATE_LINK}/${wishlistId}/share`,
-        { expiryDays },
-        config
+        { expiryDays }
       )
       return response.data
     } catch (error) {
@@ -552,10 +518,8 @@ export const wishlistShareAPI = {
   // Get share info for a wishlist
   getWishlistShareInfo: async wishlistId => {
     try {
-
       const response = await api.get(
-        `${API_ENDPOINTS.WISHLIST_SHARE.GET_INFO}/${wishlistId}/share-info`,
-        config
+        `${API_ENDPOINTS.WISHLIST_SHARE.GET_INFO}/${wishlistId}/share-info`
       )
       return response.data
     } catch (error) {
@@ -566,10 +530,8 @@ export const wishlistShareAPI = {
   // Disable share link for a wishlist
   disableWishlistShareLink: async wishlistId => {
     try {
-
       const response = await api.delete(
-        `${API_ENDPOINTS.WISHLIST_SHARE.DISABLE_LINK}/${wishlistId}/share`,
-        config
+        `${API_ENDPOINTS.WISHLIST_SHARE.DISABLE_LINK}/${wishlistId}/share`
       )
       return response.data
     } catch (error) {
@@ -594,10 +556,8 @@ export const wishlistShareAPI = {
   // Get share analytics for a wishlist
   getWishlistShareAnalytics: async wishlistId => {
     try {
-
       const response = await api.get(
-        `${API_ENDPOINTS.WISHLIST_SHARE.GET_ANALYTICS}/${wishlistId}/analytics`,
-        config
+        `${API_ENDPOINTS.WISHLIST_SHARE.GET_ANALYTICS}/${wishlistId}/analytics`
       )
       return response.data
     } catch (error) {
@@ -611,11 +571,9 @@ export const googleAPI = {
   // Get Google Drive account information
   getAccountInfo: async googleDriveToken => {
     try {
-
       const response = await api.post(
         API_ENDPOINTS.GOOGLE.ACCOUNT_INFO,
-        { googleDriveToken },
-        config
+        { googleDriveToken }
       )
       return response.data
     } catch (error) {
@@ -626,11 +584,9 @@ export const googleAPI = {
   // Get Google Drive folder structure
   getFolderStructure: async googleDriveToken => {
     try {
-
       const response = await api.post(
         API_ENDPOINTS.GOOGLE.FOLDER_STRUCTURE,
-        { googleDriveToken },
-        config
+        { googleDriveToken }
       )
       return response.data
     } catch (error) {

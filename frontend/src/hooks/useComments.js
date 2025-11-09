@@ -38,26 +38,27 @@ export const useComments = (noteId, initialLimit = 10) => {
 
   // Update accumulated comments when new data arrives
   React.useEffect(() => {
-    if (newComments.length > 0) {
+    if (commentsResponse?.data?.comments) {
+      const fetchedComments = commentsResponse.data.comments
       if (currentPage === 1) {
         // First page - replace all comments
-        setAllComments(newComments)
+        setAllComments(fetchedComments)
       } else {
         // Additional pages - append to existing comments
         setAllComments(prevComments => {
           // Avoid duplicates by checking if comment already exists
           const existingIds = new Set(prevComments.map(comment => comment.id))
-          const uniqueNewComments = newComments.filter(
+          const uniqueNewComments = fetchedComments.filter(
             comment => !existingIds.has(comment.id)
           )
           return [...prevComments, ...uniqueNewComments]
         })
       }
-    } else if (currentPage === 1) {
+    } else if (currentPage === 1 && commentsResponse) {
       // No comments on first page
       setAllComments([])
     }
-  }, [newComments, currentPage])
+  }, [commentsResponse, currentPage])
 
   // Use accumulated comments
   const comments = allComments
